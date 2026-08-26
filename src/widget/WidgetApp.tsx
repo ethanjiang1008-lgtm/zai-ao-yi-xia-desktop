@@ -15,7 +15,6 @@ import { startDragging, isTauri, tauriInvoke, tauriListen } from '../services/ta
 import { ProgressBar } from '../components/ui'
 import { useProgressStore } from '../stores/progressStore'
 import { useToastStore } from '../stores/toastStore'
-import type { FishState } from '../stores/fishStore'
 
 interface Props {
   previewMode?: boolean
@@ -27,6 +26,13 @@ export default function WidgetApp({ previewMode = false }: Props) {
   const ws = useWidgetStore()
   const [now, setNow] = useState(() => new Date())
 
+  // fish store — 用 selector 只订阅需要的字段，避免全量订阅触发多余 re-render
+  const isFishing = useFishStore((s) => s.isFishing)
+  const fishSeconds = useFishStore((s) => s.fishSeconds)
+  const fishCostFen = useFishStore((s) => s.fishCostFen)
+  const fishToggle = useFishStore((s) => s.toggle)
+  const fishEnd = useFishStore((s) => s.endAndReport)
+
   // clock
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
@@ -37,22 +43,28 @@ export default function WidgetApp({ previewMode = false }: Props) {
   useEffect(() => {
     if (!isTauri || previewMode) return
     void tauriListen('tray-action', (payload) => {
-      if (payload === 'fish') toggleFish()
+      if (payload === 'fish') doToggleFish()
     })
   }, [previewMode])
 
-  const snap: TodaySnapshot | null = profile ? getTodaySnapshot(now, profile) : null
+  // 用 useMemo 稳定 snap 引用——只在 now 或 profile 变化时重新计算
+  const snap: TodaySnapshot | null = useMemo(
+    () => (profile ? getTodaySnapshot(now, profile) : null),
+    [now, profile]
+  )
 
-  // fish
+  // 摸鱼计时：依赖 [now]，每秒最多触发一次，不会循环
   useEffect(() => {
-    useFishStore.getState().setSnap(snap)
-  }, [snap])
+    if (isFishing && snap) {
+      fishTick(snap.perSecondFen)
+    }
+  }, [now]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fishStore = useFishStore()
+  const fishTick = useFishStore((s) => s.tick)
 
-  const toggleFish = () => {
-    if (fishStore.isFishing) {
-      const report = fishStore.endAndReport()
+  const doToggleFish = () => {
+    if (isFishing) {
+      const report = fishEnd()
       if (report && report.seconds > 0) {
         useProgressStore.getState().endFish(Date.now())
         useToastStore.getState().push({
@@ -64,7 +76,7 @@ export default function WidgetApp({ previewMode = false }: Props) {
       }
     } else {
       useProgressStore.getState().startFish(Date.now())
-      fishStore.toggle()
+      fishToggle(snap?.perSecondFen ?? 0)
     }
   }
 
@@ -78,7 +90,7 @@ export default function WidgetApp({ previewMode = false }: Props) {
   if (!onboarded || !profile || !snap) {
     return (
       <div className="w-full h-full flex items-center justify-center" style={{ opacity: ws.opacity }}>
-        <div className="card glass p-4 text-sm label-dim">请先完成配置</div>
+        <div className="widget-card p-4 text-sm label-dim">请先完成配置</div>
       </div>
     )
   }
@@ -97,13 +109,15 @@ export default function WidgetApp({ previewMode = false }: Props) {
   const openMain = () => void tauriInvoke('show_main')
   const hideWidget = () => void tauriInvoke('toggle_widget')
 
+  const fishProps = { isFishing, fishSeconds, fishCostFen }
+
   return (
     <div
       className="widget-root group w-full h-full"
       style={{ opacity: ws.opacity, padding: previewMode ? 0 : 4 }}
       onMouseDown={handleDrag}
     >
-      <div className="card glass w-full h-full flex flex-col relative overflow-hidden" style={{ borderRadius: 16 }}>
+      <div className="widget-card w-full h-full flex flex-col relative overflow-hidden" style={{ borderRadius: 16 }}>
         {/* hover 控制栏 */}
         {!previewMode && (
           <div className="absolute top-1 right-1 z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" data-nodrag>
@@ -135,8 +149,8 @@ export default function WidgetApp({ previewMode = false }: Props) {
             companion={companion}
             status={status}
             earnedLabel={fenToYuanLabel(snap.earnedFen)}
-            fishStore={fishStore}
-            onFish={toggleFish}
+            fishProps={fishProps}
+            onFish={doToggleFish}
           />
         )}
       </div>
@@ -200,7 +214,7 @@ function SizeL({
   companion,
   status,
   earnedLabel,
-  fishStore,
+  fishProps,
   onFish,
 }: {
   snap: TodaySnapshot
@@ -212,7 +226,7 @@ function SizeL({
   companion: string
   status: ReturnType<typeof getTodayStatus>
   earnedLabel: string
-  fishStore: FishState
+  fishProps: { isFishing: boolean; fishSeconds: number; fishCostFen: number }
   onFish: () => void
 }) {
   return (
@@ -289,13 +303,13 @@ function SizeL({
       {has('fish') && (
         <div className="flex items-center justify-between text-[10px]" data-nodrag>
           <div>
-            {fishStore.isFishing ? (
-              <span className="font-mono font-bold">{fmtHMS(fishStore.fishSeconds)} · {fenToYuanLabel(fishStore.fishCostFen)}</span>
+            {fishProps.isFishing ? (
+              <span className="font-mono font-bold">{fmtHMS(fishProps.fishSeconds)} · {fenToYuanLabel(fishProps.fishCostFen)}</span>
             ) : (
               <span className="label-dim">🐟 摸鱼一下</span>
             )}
           </div>
-          <button className="btn text-[9px] px-1.5 py-0.5" onClick={onFish}>{fishStore.isFishing ? '停' : '鱼'}</button>
+          <button className="btn text-[9px] px-1.5 py-0.5" onClick={onFish}>{fishProps.isFishing ? '停' : '鱼'}</button>
         </div>
       )}
 
