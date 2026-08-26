@@ -347,7 +347,6 @@ function SizeS({
       <div className="text-[9px] tank-label mb-0.5">{perSecLabel}</div>
       <div className={`text-2xl font-bold tank-money leading-tight ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
         ¥{earnedLiveSplit.whole}
-        {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
       </div>
       <div className="text-[9px] tank-label mt-1 flex items-center gap-1.5 justify-center">
         {moodEmoji && <span>{moodEmoji}</span>}
@@ -393,7 +392,6 @@ function SizeM({
               <div className="text-[9px] tank-label">今日已赚 · {isWorking ? '实时' : '暂停'}</div>
               <div className={`text-[22px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
                 ¥{earnedLiveSplit.whole}
-                {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
               </div>
             </div>
             <div className="text-right shrink-0">
@@ -512,7 +510,6 @@ function SizeL({
               <div className="text-[9px] tank-label">今日已赚 · {isWorking ? '实时微动' : '暂停'}</div>
               <div className={`text-[28px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
                 ¥{earnedLiveSplit.whole}
-                {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
               </div>
               <div className="text-[9px] tank-label mt-1">{perSecLabel}</div>
             </div>
