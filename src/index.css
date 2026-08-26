@@ -148,45 +148,24 @@ body.widget-body {
     box-shadow: none;
   }
 
-  /* ===== 鱼形卡片（v0.2.2）：非矩形的有机轮廓 =====
-   * 用 clip-path 切一个左圆右尖的「鱼」轮廓
-   * 头部大圆 + 身体 + 尾巴尖；尺寸 280×200
-   * 改用：squircle 圆角 + 右侧鱼尾三角切角
-   *   左/上/下：38px 圆角
-   *   右上：0（切出斜面）
-   *   右下：鱼尾尖（clip-path 实现）
+  /* ===== 胶囊形卡片（v0.2.3）：去除鱼尾，统一 28px 圆角 =====
+   * 设计目标：
+   *   1. 形如胶囊（pill），不裁剪不切角
+   *   2. 三个尺寸共用同一形状，按尺寸放大缩小始终是胶囊
+   *   3. 浅色主题下保持同样形状，只是换底色
    */
-  .widget-fish {
+  .widget-capsule {
     background:
       radial-gradient(ellipse at top, rgba(255, 255, 255, 0.1), transparent 60%),
       linear-gradient(180deg, #1a3a5c 0%, #122544 50%, #0a1730 100%);
     border: 1px solid rgba(120, 180, 255, 0.18);
-    border-radius: 38px;
-    /* 鱼形剪裁：左圆 + 鱼尾（path() 不在所有浏览器都支持，用 border-radius 兜底） */
+    border-radius: 28px;
   }
 
-  @supports (clip-path: path('M0 0')) {
-    .widget-fish {
-      clip-path: path('M 38 0 L 250 0 Q 280 0 280 30 L 280 130 Q 290 145 296 158 Q 290 165 280 170 L 280 170 Q 280 200 250 200 L 38 200 Q 0 200 0 162 L 0 38 Q 0 0 38 0 Z');
-    }
-  }
-
-  /* 鱼尾装饰 SVG（覆盖在卡片右下方，剪裁外侧） */
-  .widget-fishtail {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 22px;
-    height: 80px;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* 主题变体：浅色主题鱼缸 */
-  [data-theme='mint'] .widget-fish,
-  [data-theme='sakura'] .widget-fish,
-  [data-theme='sunset'] .widget-fish {
+  /* 主题变体：浅色主题 */
+  [data-theme='mint'] .widget-capsule,
+  [data-theme='sakura'] .widget-capsule,
+  [data-theme='sunset'] .widget-capsule {
     background:
       radial-gradient(ellipse at top, rgba(255, 255, 255, 0.55), transparent 60%),
       linear-gradient(180deg, rgba(180, 220, 255, 0.4), rgba(150, 200, 240, 0.32), rgba(120, 180, 230, 0.25));
@@ -199,7 +178,7 @@ body.widget-body {
     inset: 0;
     pointer-events: none;
     overflow: hidden;
-    border-radius: 38px;
+    border-radius: 28px;
     z-index: 0;
   }
 
@@ -247,6 +226,10 @@ body.widget-body {
     background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(8px);
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .widget-status .dot {
@@ -288,7 +271,7 @@ body.widget-body {
     right: 0;
     height: 14px;
     overflow: hidden;
-    border-radius: 0 0 38px 38px;
+    border-radius: 0 0 28px 28px;
     pointer-events: none;
     z-index: 0;
   }
@@ -322,6 +305,53 @@ body.widget-body {
   [data-theme='sunset'] .widget-section {
     background: rgba(255, 255, 255, 0.5);
     border-color: rgba(100, 160, 220, 0.25);
+  }
+
+
+  /* ===== 暂停状态样式（v0.2.3）=====
+   * 当 WorkState != working 时显示：
+   *   1. 顶部 status 徽章自动变黄/红（dot 已有 warn/off 处理）
+   *   2. 工资主块灰化、小数位隐藏，避免「数字不动」的误解
+   *   3. 显眼「已暂停」角标
+   */
+  .widget-money-block.is-paused {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+    border-color: rgba(255, 255, 255, 0.1);
+    opacity: 0.85;
+  }
+
+  .tank-money.is-paused {
+    color: rgba(200, 210, 230, 0.7);
+    text-shadow: none;
+  }
+
+  .tank-money.is-paused .live-fraction {
+    display: none;
+  }
+
+  .widget-paused-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 5;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 500;
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  [data-theme='mint'] .widget-paused-badge,
+  [data-theme='sakura'] .widget-paused-badge,
+  [data-theme='sunset'] .widget-paused-badge {
+    background: rgba(245, 158, 66, 0.18);
+    color: #b45309;
+    border-color: rgba(245, 158, 66, 0.35);
   }
 
   /* 紧凑子板块：胶囊形 */

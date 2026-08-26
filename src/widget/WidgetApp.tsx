@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUserStore } from '../stores/userStore'
-import { useWidgetStore } from '../stores/widgetStore'
+import { useWidgetStore, modulesForSize, SIZE_CONFIG } from '../stores/widgetStore'
 import { useFishStore } from '../stores/fishStore'
 import { getTodaySnapshot, type TodaySnapshot, type WorkState } from '../services/TimeService'
 import { collectStats } from '../services/engine'
@@ -11,7 +11,7 @@ import { getTodayStatus } from '../services/todayStatus'
 import { pickQuote, sceneForState } from '../constants/quotes'
 import { companionMessage } from '../services/companion'
 import { goalProgress, useGoalStore } from '../stores/goalStore'
-import { startDragging, isTauri, tauriInvoke, tauriListen } from '../services/tauri'
+import { startDragging, isTauri, tauriInvoke, tauriListen, setWidgetSize } from '../services/tauri'
 import { ProgressBar } from '../components/ui'
 import { useProgressStore } from '../stores/progressStore'
 import { useToastStore } from '../stores/toastStore'
@@ -138,6 +138,19 @@ export default function WidgetApp({ previewMode = false }: Props) {
     }
   }, [now]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 同步 widget 窗口尺寸到当前 SIZE_CONFIG（拖动 / 切换尺寸）
+  useEffect(() => {
+    if (previewMode) return
+    const cfg = SIZE_CONFIG[ws.size]
+    void setWidgetSize(cfg.w, cfg.h)
+  }, [ws.size, previewMode])
+
+  // 按尺寸裁剪模块（超过 maxModules 的不渲染）
+  const visibleModules = useMemo(
+    () => modulesForSize(ws.modules, ws.size),
+    [ws.modules, ws.size]
+  )
+
   const doToggleFish = () => {
     if (isFishing) {
       const report = fishEnd()
@@ -166,7 +179,7 @@ export default function WidgetApp({ previewMode = false }: Props) {
   if (!onboarded || !profile || !snap) {
     return (
       <div className="w-full h-full flex items-center justify-center" style={{ opacity: ws.opacity }}>
-        <div className="widget-card widget-fish p-4 text-sm tank-label">请先完成配置</div>
+        <div className="widget-card widget-capsule p-4 text-sm tank-label">请先完成配置</div>
       </div>
     )
   }
@@ -183,6 +196,15 @@ export default function WidgetApp({ previewMode = false }: Props) {
   const earnedLive = fenToYuanLiveLabel(snap.earnedFen, 4) // 实时微动：4 位小数
   const earnedLiveSplit = splitLiveYuan(snap.earnedFen)
   const badge = statusBadge(snap, profile)
+  const isWorking = snap.state === 'working'
+  const isPaused = !isWorking // 午休 / 下班前 / 下班 / 休息日 → 暂停
+  const pausedLabel: Record<typeof snap.state, string> = {
+    working: '',
+    break: '午休中',
+    before: '准备中',
+    after: '已下班',
+    offday: '休息日',
+  }
 
   const openMain = () => void tauriInvoke('show_main')
   const hideWidget = () => void tauriInvoke('toggle_widget')
@@ -194,24 +216,14 @@ export default function WidgetApp({ previewMode = false }: Props) {
       onMouseDown={handleDrag}
     >
       <div
-        className="widget-card widget-fish w-full h-full flex flex-col relative overflow-hidden"
+        className="widget-card widget-capsule w-full h-full flex flex-col relative overflow-hidden"
       >
         {/* 背景气泡（鱼缸氛围） */}
         <div className="widget-bubbles" />
 
-        {/* 鱼尾装饰：右侧 SVG（位于鱼尾尖位置） */}
-        <svg className="widget-fishtail" viewBox="0 0 22 80" fill="none" preserveAspectRatio="none">
-          <path
-            d="M 0 0 Q 18 30 22 40 Q 18 50 0 80 L 8 40 Z"
-            fill="rgba(120, 180, 255, 0.18)"
-            stroke="rgba(120, 180, 255, 0.35)"
-            strokeWidth="0.5"
-          />
-        </svg>
-
         {/* hover 控制栏 */}
         {!previewMode && (
-          <div className="absolute top-1.5 right-1.5 z-20 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" data-nodrag>
+          <div className="absolute bottom-1.5 right-1.5 z-20 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 backdrop-blur-sm rounded-full px-1 py-0.5" data-nodrag>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('S')}>S</button>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('M')}>M</button>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('L')}>L</button>
@@ -233,6 +245,14 @@ export default function WidgetApp({ previewMode = false }: Props) {
           </div>
         </div>
 
+        {/* 暂停角标（非工作时显示，提示用户「数字没动是正常的」） */}
+        {isPaused && (
+          <div className="widget-paused-badge" data-nodrag>
+            ⏸ {pausedLabel[snap.state]}
+            {badge.sub && ` · ${badge.sub}`}
+          </div>
+        )}
+
         {ws.size === 'S' && (
           <SizeS
             snap={snap}
@@ -241,12 +261,13 @@ export default function WidgetApp({ previewMode = false }: Props) {
             perSecLabel={perSecondLabel(snap.perSecondFen)}
             moodEmoji={moodMeta?.emoji ?? null}
             flash={flash}
+            isPaused={isPaused}
           />
         )}
         {ws.size === 'M' && (
           <SizeM
             snap={snap}
-            modules={ws.modules}
+            modules={visibleModules}
             has={has(ws.modules)}
             earnedLive={earnedLive}
             earnedLiveSplit={earnedLiveSplit}
@@ -254,12 +275,14 @@ export default function WidgetApp({ previewMode = false }: Props) {
             moodMeta={moodMeta}
             quote={quote}
             flash={flash}
+            isPaused={isPaused}
+            isWorking={isWorking}
           />
         )}
         {ws.size === 'L' && (
           <SizeL
             snap={snap}
-            modules={ws.modules}
+            modules={visibleModules}
             has={has(ws.modules)}
             levelInfo={levelInfo}
             goalInfo={goalInfo}
@@ -274,6 +297,8 @@ export default function WidgetApp({ previewMode = false }: Props) {
             onFish={doToggleFish}
             moodMeta={moodMeta}
             flash={flash}
+            isPaused={isPaused}
+            isWorking={isWorking}
           />
         )}
 
@@ -307,6 +332,7 @@ function SizeS({
   perSecLabel,
   moodEmoji,
   flash,
+  isPaused,
 }: {
   snap: TodaySnapshot
   earnedLive: string
@@ -314,11 +340,12 @@ function SizeS({
   perSecLabel: string
   moodEmoji: string | null
   flash: boolean
+  isPaused: boolean
 }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-3 pb-3 overflow-hidden relative z-10">
       <div className="text-[9px] tank-label mb-0.5">{perSecLabel}</div>
-      <div className={`text-2xl font-bold tank-money leading-tight ${flash ? 'tick-flash' : ''}`}>
+      <div className={`text-2xl font-bold tank-money leading-tight ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
         ¥{earnedLiveSplit.whole}
         {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
       </div>
@@ -341,6 +368,8 @@ function SizeM({
   moodMeta,
   quote,
   flash,
+  isPaused,
+  isWorking,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
@@ -351,16 +380,18 @@ function SizeM({
   moodMeta: { label: string; emoji: string } | null
   quote: string
   flash: boolean
+  isPaused: boolean
+  isWorking: boolean
 }) {
   return (
     <div className="flex-1 flex flex-col gap-1.5 px-2.5 pb-4 overflow-hidden relative z-10">
       {/* 收入主块：圆形/大圆角的水滴形焦点 */}
       {has('salary') && (
-        <div className="widget-money-block">
+        <div className={`widget-money-block ${isPaused ? 'is-paused' : ''}`}>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <div className="text-[9px] tank-label">今日已赚 · 实时</div>
-              <div className={`text-[22px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''}`}>
+              <div className="text-[9px] tank-label">今日已赚 · {isWorking ? '实时' : '暂停'}</div>
+              <div className={`text-[22px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
                 ¥{earnedLiveSplit.whole}
                 {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
               </div>
@@ -438,6 +469,8 @@ function SizeL({
   onFish,
   moodMeta,
   flash,
+  isPaused,
+  isWorking,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
@@ -455,6 +488,8 @@ function SizeL({
   onFish: () => void
   moodMeta: { label: string; emoji: string } | null
   flash: boolean
+  isPaused: boolean
+  isWorking: boolean
 }) {
   type RenderResult = { node: React.ReactNode; compact?: boolean } | null
   const renderers: Record<WidgetModuleId, () => RenderResult> = {
@@ -471,11 +506,11 @@ function SizeL({
         : null,
     salary: () => ({
       node: (
-        <div className="widget-money-block">
+        <div className={`widget-money-block ${isPaused ? 'is-paused' : ''}`}>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <div className="text-[9px] tank-label">今日已赚 · 实时微动</div>
-              <div className={`text-[28px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''}`}>
+              <div className="text-[9px] tank-label">今日已赚 · {isWorking ? '实时微动' : '暂停'}</div>
+              <div className={`text-[28px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
                 ¥{earnedLiveSplit.whole}
                 {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
               </div>

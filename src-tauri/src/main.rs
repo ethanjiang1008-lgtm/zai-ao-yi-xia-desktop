@@ -64,6 +64,8 @@ fn set_widget_on_top(app: tauri::AppHandle, on_top: bool) -> Result<(), String> 
 #[tauri::command]
 fn set_widget_size(app: tauri::AppHandle, w: f64, h: f64) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("widget") {
+        // 同时设置 min_size，避免被用户拖到比目标尺寸还小
+        let _ = win.set_min_size(Some(tauri::LogicalSize::new(w, h)));
         win.set_size(tauri::LogicalSize::new(w, h))
             .map_err(|e| e.to_string())?;
     }

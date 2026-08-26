@@ -1,4 +1,4 @@
-import { useWidgetStore, MODULE_LABELS } from '../stores/widgetStore'
+import { useWidgetStore, MODULE_LABELS, SIZE_CONFIG } from '../stores/widgetStore'
 import type { WidgetModuleId, WidgetSize } from '../types'
 import { autostartEnable, autostartIsEnabled, setWidgetSize, setWidgetOnTop, isTauri } from '../services/tauri'
 import { useEffect, useState } from 'react'
@@ -6,11 +6,7 @@ import WidgetApp from '../widget/WidgetApp'
 import { useMoodStore, MOOD_LIST, MOOD_META } from '../stores/moodStore'
 import { useReminderStore } from '../stores/reminderStore'
 
-const SIZES: { id: WidgetSize; label: string; w: number; h: number }[] = [
-  { id: 'S', label: 'S 极简', w: 200, h: 130 },
-  { id: 'M', label: 'M 标准', w: 300, h: 230 },
-  { id: 'L', label: 'L 游戏', w: 340, h: 300 },
-]
+
 
 const ALL_MODULES: WidgetModuleId[] = [
   'salary',
@@ -38,9 +34,10 @@ export default function DesktopSettings() {
     void autostartIsEnabled().then(setAutostartState)
   }, [])
 
-  const handleSize = (s: WidgetSize, w: number, h: number) => {
-    ws.setSize(s)
-    void setWidgetSize(w, h)
+  const handleSize = (size: WidgetSize) => {
+    ws.setSize(size)
+    const cfg = SIZE_CONFIG[size]
+    void setWidgetSize(cfg.w, cfg.h)
   }
 
   const handleOnTop = (b: boolean) => {
@@ -61,7 +58,7 @@ export default function DesktopSettings() {
       <div className="card p-4 mb-5">
         <div className="label-dim text-xs mb-3">实时预览</div>
         <div className="flex justify-center py-4" style={{ background: 'var(--bar-track)', borderRadius: 12 }}>
-          <div style={{ width: SIZES.find((s) => s.id === ws.size)?.w, transform: 'scale(0.85)', transformOrigin: 'center' }}>
+          <div style={{ width: SIZE_CONFIG[ws.size].w, transform: 'scale(0.85)', transformOrigin: 'center' }}>
             <WidgetApp previewMode />
           </div>
         </div>
@@ -71,11 +68,19 @@ export default function DesktopSettings() {
       <div className="card p-4 mb-3">
         <div className="font-semibold text-sm mb-3">尺寸</div>
         <div className="flex gap-2">
-          {SIZES.map((s) => (
-            <button key={s.id} className={`btn flex-1 ${ws.size === s.id ? 'btn-primary' : ''}`} onClick={() => handleSize(s.id, s.w, s.h)}>
-              {s.label}
+          {(Object.values(SIZE_CONFIG) as typeof SIZE_CONFIG[WidgetSize][]).map((cfg) => (
+            <button
+              key={cfg.id}
+              className={`btn flex-1 flex-col gap-0.5 py-2 ${ws.size === cfg.id ? 'btn-primary' : ''}`}
+              onClick={() => handleSize(cfg.id)}
+            >
+              <span className="text-sm font-semibold">{cfg.label}</span>
+              <span className="text-[10px] opacity-75">最多 {cfg.maxModules} 个模块</span>
             </button>
           ))}
+        </div>
+        <div className="text-[11px] label-faint mt-2">
+          {SIZE_CONFIG[ws.size].desc}（{SIZE_CONFIG[ws.size].w}×{SIZE_CONFIG[ws.size].h}）· 调高尺寸可显示更多模块
         </div>
       </div>
 
@@ -190,17 +195,22 @@ export default function DesktopSettings() {
       <div className="card p-4">
         <div className="font-semibold text-sm mb-1">显示模块（可开关 · 排序）</div>
         <div className="text-[11px] label-faint mb-3">
-          顺序 = 悬浮窗中从上到下的显示顺序，已启用的模块按以下顺序排列。
+          顺序 = 悬浮窗中从上到下的显示顺序。「S 极简」最多 2 个、「M 标准」最多 5 个、「L 详细」最多 11 个 — 想多显示就调高尺寸。
         </div>
         <div className="space-y-1.5">
-          {ALL_MODULES.map((m) => {
+          {(() => {
+            const cap = SIZE_CONFIG[ws.size].maxModules
+            const atCap = ws.modules.length >= cap
+            return ALL_MODULES.map((m) => {
             const enabled = ws.modules.includes(m)
             const idx = ws.modules.indexOf(m)
+            const disabled = !enabled && atCap
             return (
-              <div key={m} className="flex items-center justify-between py-1.5 px-2 rounded-lg" style={{ background: enabled ? 'var(--card)' : 'transparent' }}>
+              <div key={m} className={`flex items-center justify-between py-1.5 px-2 rounded-lg ${disabled ? 'opacity-40' : ''}`} style={{ background: enabled ? 'var(--card)' : 'transparent' }}>
                 <div className="flex items-center gap-3">
-                  <Toggle on={enabled} onChange={() => ws.toggleModule(m)} />
+                  <Toggle on={enabled} onChange={() => ws.toggleModule(m)} disabled={disabled} />
                   <span className="text-sm">{MODULE_LABELS[m]}</span>
+                  {disabled && <span className="chip text-[9px] py-0">已达上限</span>}
                 </div>
                 {enabled && (
                   <div className="flex gap-1">
@@ -210,7 +220,11 @@ export default function DesktopSettings() {
                 )}
               </div>
             )
-          })}
+          })
+          })()}
+        </div>
+        <div className="text-[11px] label-faint mt-3">
+          已启用 {ws.modules.length} / {SIZE_CONFIG[ws.size].maxModules} 个模块
         </div>
       </div>
     </div>

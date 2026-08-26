@@ -53,6 +53,30 @@ export const MODULE_LABELS: Record<WidgetModuleId, string> = {
   mood: '今日心情',
 }
 
+/** 尺寸配置：模块上限 + 窗口尺寸 + 描述 */
+export interface SizeConfig {
+  id: WidgetSize
+  label: string
+  desc: string
+  /** 该尺寸下默认/最大显示的模块数（salary 永远算 1） */
+  maxModules: number
+  /** 窗口逻辑宽高（px） */
+  w: number
+  h: number
+}
+
+export const SIZE_CONFIG: Record<WidgetSize, SizeConfig> = {
+  S: { id: 'S', label: 'S 极简', desc: '只看收入', maxModules: 2, w: 200, h: 110 },
+  M: { id: 'M', label: 'M 标准', desc: '收入+进度+下班', maxModules: 5, w: 290, h: 220 },
+  L: { id: 'L', label: 'L 详细', desc: '全部模块', maxModules: 11, w: 330, h: 460 },
+}
+
+/** 当前尺寸下应该显示的模块（超出上限时取前 maxModules 个） */
+export function modulesForSize(modules: WidgetModuleId[], size: WidgetSize): WidgetModuleId[] {
+  const cap = SIZE_CONFIG[size].maxModules
+  return modules.slice(0, cap)
+}
+
 export const useWidgetStore = create<WidgetState>()(
   persist(
     (set, get) => ({
@@ -73,6 +97,9 @@ export const useWidgetStore = create<WidgetState>()(
         set((s) => {
           const has = s.modules.includes(m)
           if (has) return { modules: s.modules.filter((x) => x !== m) }
+          // 启用时检查上限
+          const cap = SIZE_CONFIG[s.size].maxModules
+          if (s.modules.length >= cap) return s // 超过当前尺寸上限，不允许启用
           return { modules: [...s.modules, m] }
         }),
       moveModule: (m, dir) =>
@@ -91,9 +118,9 @@ export const useWidgetStore = create<WidgetState>()(
     }),
     {
       name: 'fish-widget',
-      version: 2,
+      version: 3,
       migrate: (persistedState: any, fromVersion: number) => {
-        // v0.2: 移除已下线的 'weather' 模块
+        // v0.2.2 → v0.2.3: 移除已下线的 'weather' 模块（兼容老存档）
         if (persistedState && Array.isArray(persistedState.modules)) {
           persistedState.modules = (persistedState.modules as string[]).filter(
             (m) => m !== 'weather'
