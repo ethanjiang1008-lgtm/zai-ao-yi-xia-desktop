@@ -3,8 +3,6 @@ import type { WidgetModuleId, WidgetSize } from '../types'
 import { autostartEnable, autostartIsEnabled, setWidgetSize, setWidgetOnTop, isTauri } from '../services/tauri'
 import { useEffect, useState } from 'react'
 import WidgetApp from '../widget/WidgetApp'
-import { useUserStore } from '../stores/userStore'
-import { useClock } from '../hooks/useClock'
 
 const SIZES: { id: WidgetSize; label: string; w: number; h: number }[] = [
   { id: 'S', label: 'S 极简', w: 200, h: 120 },
@@ -17,8 +15,6 @@ const ALL_MODULES: WidgetModuleId[] = ['salary', 'progress', 'countdown', 'goal'
 export default function DesktopSettings() {
   const ws = useWidgetStore()
   const [autostart, setAutostartState] = useState(false)
-  const profile = useUserStore((s) => s.profile)
-  const { now, snap } = useClock(profile)
 
   useEffect(() => {
     void autostartIsEnabled().then(setAutostartState)
