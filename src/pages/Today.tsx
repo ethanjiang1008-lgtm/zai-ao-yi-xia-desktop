@@ -23,19 +23,23 @@ export default function Today({ now, snap }: Props) {
   const stats = useMemo(() => collectStats(), [snap])
   const levelInfo = levelXpInfo(stats.totalWorkMinutes)
   const status = useMemo(() => getTodayStatus(now), [dateStr(now)])
-  const fishStore = useFishStore()
-  const isFishing = fishStore.isFishing
-  const fishSeconds = fishStore.fishSeconds
-  const fishCostFen = fishStore.fishCostFen
+  const fishToggle = useFishStore((s) => s.toggle)
+  const fishTick = useFishStore((s) => s.tick)
+  const fishEnd = useFishStore((s) => s.endAndReport)
+  const isFishing = useFishStore((s) => s.isFishing)
+  const fishSeconds = useFishStore((s) => s.fishSeconds)
+  const fishCostFen = useFishStore((s) => s.fishCostFen)
 
-  // 每秒把 snapshot 喂给 fishStore 并 tick
+  // 每秒 tick 摸鱼计时（依赖 now，不会循环）
   useEffect(() => {
-    useFishStore.getState().setSnap(snap)
-  }, [snap])
+    if (isFishing && snap) {
+      fishTick(snap.perSecondFen)
+    }
+  }, [now]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFishToggle = () => {
-    if (fishStore.isFishing) {
-      const report = fishStore.endAndReport()
+    if (isFishing) {
+      const report = fishEnd()
       if (report && report.seconds > 0) {
         useProgressStore.getState().startFish(0) // noop if not started
         useProgressStore.getState().endFish(Date.now())
@@ -48,7 +52,7 @@ export default function Today({ now, snap }: Props) {
       }
     } else {
       useProgressStore.getState().startFish(Date.now())
-      fishStore.toggle()
+      fishToggle(snap?.perSecondFen ?? 0)
     }
   }
 
