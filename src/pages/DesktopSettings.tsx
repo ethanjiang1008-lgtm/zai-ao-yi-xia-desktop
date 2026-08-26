@@ -19,7 +19,6 @@ const ALL_MODULES: WidgetModuleId[] = [
   'fish',
   'status',
   'quote',
-  'companion',
 ]
 
 export default function DesktopSettings() {
@@ -156,7 +155,10 @@ export default function DesktopSettings() {
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-sm">显示搭子</span>
+          <div>
+            <span className="text-sm">在文案前加搭子图标</span>
+            <div className="text-[11px] label-faint mt-0.5">开启后，今日文案前会显示 🐱</div>
+          </div>
           <Toggle on={ws.showCompanion} onChange={ws.toggleCompanion} />
         </div>
 

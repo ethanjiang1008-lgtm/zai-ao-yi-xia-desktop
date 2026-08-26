@@ -9,7 +9,6 @@ import { fenToYuanLabel, fenToYuanLiveLabel, perSecondLabel } from '../utils/mon
 import { fmtHMS, fmtMinHM, dateStr, hhmmToMin } from '../utils/format'
 import { getTodayStatus } from '../services/todayStatus'
 import { pickQuote, sceneForState } from '../constants/quotes'
-import { companionMessage } from '../services/companion'
 import { goalProgress, useGoalStore } from '../stores/goalStore'
 import { startDragging, isTauri, tauriInvoke, tauriListen, setWidgetSize } from '../services/tauri'
 import { ProgressBar } from '../components/ui'
@@ -152,10 +151,10 @@ export default function WidgetApp({ previewMode = false }: Props) {
   )
 
   const doToggleFish = () => {
+    // v0.2.5: 不再直接调 progressStore，统一由 App.tsx 的 'fish-changed' listener 记录
     if (isFishing) {
       const report = fishEnd()
       if (report && report.seconds > 0) {
-        useProgressStore.getState().endFish(Date.now())
         useToastStore.getState().push({
           kind: 'info',
           icon: '🐟',
@@ -163,9 +162,11 @@ export default function WidgetApp({ previewMode = false }: Props) {
           desc: `花 ${fenToYuanLabel(report.costFen)} 买下了 ${fmtMinHM(Math.round(report.seconds / 60))} 自由。`,
         })
       }
+      void tauriInvoke('broadcast_fish', { isFishing: false, startedAt: null, endedAt: Date.now() })
     } else {
-      useProgressStore.getState().startFish(Date.now())
+      const now = Date.now()
       fishToggle(snap?.perSecondFen ?? 0)
+      void tauriInvoke('broadcast_fish', { isFishing: true, startedAt: now, endedAt: null })
     }
   }
 
@@ -191,7 +192,7 @@ export default function WidgetApp({ previewMode = false }: Props) {
   const status = getTodayStatus(now)
   const scene = sceneForState(snap.state as WorkState, now.getDay(), now.getHours(), snap.nearOff)
   const quote = ws.showQuote ? pickQuote(scene, dateStr(now) + scene + '|' + quoteTick) : ''
-  const companion = ws.showCompanion ? companionMessage(now, snap, fenToYuanLabel(snap.earnedFen)) : ''
+
   const moodMeta = moodToday ? MOOD_META[moodToday] : null
   const earnedLive = fenToYuanLiveLabel(snap.earnedFen, 4) // 实时微动：4 位小数
   const earnedLiveSplit = splitLiveYuan(snap.earnedFen)
@@ -288,7 +289,6 @@ export default function WidgetApp({ previewMode = false }: Props) {
             goalInfo={goalInfo}
             currentGoal={currentGoal}
             quote={quote}
-            companion={companion}
             status={status}
             earnedLive={earnedLive}
             earnedLiveSplit={earnedLiveSplit}
@@ -299,6 +299,7 @@ export default function WidgetApp({ previewMode = false }: Props) {
             isPaused={isPaused}
             isWorking={isWorking}
             tickFlash={ws.tickFlash}
+            showCompanion={ws.showCompanion}
           />
         )}
 
@@ -455,7 +456,6 @@ function SizeL({
   goalInfo,
   currentGoal,
   quote,
-  companion,
   status,
   earnedLive,
   earnedLiveSplit,
@@ -466,6 +466,7 @@ function SizeL({
   isPaused,
   isWorking,
   tickFlash,
+  showCompanion,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
@@ -474,7 +475,6 @@ function SizeL({
   goalInfo: { progress: number; remaining: number } | null
   currentGoal: { emoji: string; name: string } | null
   quote: string
-  companion: string
   status: ReturnType<typeof getTodayStatus>
   earnedLive: string
   earnedLiveSplit: { whole: string; fraction: string }
@@ -485,6 +485,7 @@ function SizeL({
   isPaused: boolean
   isWorking: boolean
   tickFlash: boolean
+  showCompanion: boolean
 }) {
   type RenderResult = { node: React.ReactNode; compact?: boolean } | null
   const renderers: Record<WidgetModuleId, () => RenderResult> = {
@@ -554,7 +555,7 @@ function SizeL({
       node: (
         <div className="widget-section widget-section-compact">
           <div className="flex justify-between text-[9px] mb-1">
-            <span className="tank-label">XP</span>
+            <span className="tank-label">经验</span>
             <span className="tank-label font-mono">{levelInfo.currentXp}/{levelInfo.needXp}</span>
           </div>
           <ProgressBar value={levelInfo.progress} height={3} />
@@ -590,15 +591,11 @@ function SizeL({
     }),
     quote: () =>
       quote
-        ? { node: <div className="widget-section widget-section-compact text-[10px] tank-label text-center leading-snug">{quote}</div> }
-        : null,
-    companion: () =>
-      companion
         ? {
             node: (
-              <div className="widget-section widget-section-compact flex items-start gap-2 text-[10px]">
-                <span className="text-sm shrink-0">🐱</span>
-                <span className="tank-label leading-snug">{companion}</span>
+              <div className="widget-section widget-section-compact flex items-start gap-1.5 text-[10px]">
+                {showCompanion && <span className="text-sm shrink-0">🐱</span>}
+                <span className="tank-label leading-snug text-left flex-1">{quote}</span>
               </div>
             ),
           }

@@ -92,6 +92,25 @@ fn broadcast_theme(app: tauri::AppHandle, theme: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 摸鱼状态变化广播：任一窗口点摸鱼/结束，通知另一个窗口同步 UI + 记录 progress
+#[tauri::command]
+fn broadcast_fish(
+    app: tauri::AppHandle,
+    is_fishing: bool,
+    started_at: Option<i64>,
+    ended_at: Option<i64>,
+) -> Result<(), String> {
+    let payload = serde_json::json!({
+        "isFishing": is_fishing,
+        "startedAt": started_at,
+        "endedAt": ended_at,
+    });
+    // 两个窗口都发：发起方也收到，便于统一在 listener 里记录 progress（避免发起方自己调 startFish/endFish 后又被 listener 重复调）
+    let _ = app.emit_to("widget", "fish-changed", payload.clone());
+    let _ = app.emit_to("main", "fish-changed", payload);
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -213,7 +232,8 @@ fn main() {
             set_widget_on_top,
             set_widget_size,
             show_notification,
-            broadcast_theme
+            broadcast_theme,
+            broadcast_fish
         ])
         .run(tauri::generate_context!())
         .expect("error while running Fish");

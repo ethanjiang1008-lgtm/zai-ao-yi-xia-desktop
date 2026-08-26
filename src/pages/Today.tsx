@@ -12,6 +12,7 @@ import { companionMessage } from '../services/companion'
 import { useFishStore } from '../stores/fishStore'
 import { useProgressStore } from '../stores/progressStore'
 import { useToastStore } from '../stores/toastStore'
+import { tauriInvoke } from '../services/tauri'
 
 interface Props {
   now: Date
@@ -38,11 +39,10 @@ export default function Today({ now, snap }: Props) {
   }, [now]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFishToggle = () => {
+    // v0.2.5: 不再直接调 progressStore，统一由 App.tsx 的 'fish-changed' listener 记录
     if (isFishing) {
       const report = fishEnd()
       if (report && report.seconds > 0) {
-        useProgressStore.getState().startFish(0) // noop if not started
-        useProgressStore.getState().endFish(Date.now())
         useToastStore.getState().push({
           kind: 'info',
           icon: '🐟',
@@ -50,9 +50,11 @@ export default function Today({ now, snap }: Props) {
           desc: `花 ${fenToYuanLabel(report.costFen)} 买下了 ${fmtMinHM(Math.round(report.seconds / 60))} 自由。`,
         })
       }
+      void tauriInvoke('broadcast_fish', { isFishing: false, startedAt: null, endedAt: Date.now() })
     } else {
-      useProgressStore.getState().startFish(Date.now())
+      const now = Date.now()
       fishToggle(snap?.perSecondFen ?? 0)
+      void tauriInvoke('broadcast_fish', { isFishing: true, startedAt: now, endedAt: null })
     }
   }
 

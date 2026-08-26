@@ -9,6 +9,8 @@ export interface FishState {
   toggle: (perSecondFen: number) => void
   tick: (perSecondFen: number) => void
   endAndReport: () => { seconds: number; costFen: number } | null
+  /** v0.2.5: 跨窗口同步（无副作用，只设状态；used by App.tsx listener） */
+  syncFrom: (isFishing: boolean, startedAt: number | null) => void
 }
 
 export const useFishStore = create<FishState>((set, get) => ({
@@ -40,5 +42,10 @@ export const useFishStore = create<FishState>((set, get) => ({
     const report = { seconds: s.fishSeconds, costFen: s.fishCostFen }
     set({ isFishing: false, startedAt: null, fishSeconds: 0, fishCostFen: 0 })
     return report
+  },
+
+  // v0.2.5: 跨窗口同步 — 不重置 tick 算出的 fishSeconds/fishCostFen（让各窗口自己 tick）
+  syncFrom: (isFishing, startedAt) => {
+    set({ isFishing, startedAt })
   },
 }))

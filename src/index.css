@@ -155,21 +155,99 @@ body.widget-body {
    *   3. 浅色主题下保持同样形状，只是换底色
    */
   .widget-capsule {
+    border-radius: 28px;
+  }
+
+  /* --- Midnight：深蓝（默认）--- */
+  [data-theme='midnight'] .widget-capsule,
+  .widget-capsule {
     background:
       radial-gradient(ellipse at top, rgba(255, 255, 255, 0.1), transparent 60%),
       linear-gradient(180deg, #1a3a5c 0%, #122544 50%, #0a1730 100%);
     border: 1px solid rgba(120, 180, 255, 0.18);
-    border-radius: 28px;
   }
 
-  /* 主题变体：浅色主题 */
-  [data-theme='mint'] .widget-capsule,
-  [data-theme='sakura'] .widget-capsule,
+  /* --- Cyber：深紫（赛博朋克）--- */
+  [data-theme='cyber'] .widget-capsule {
+    background:
+      radial-gradient(ellipse at top, rgba(255, 80, 200, 0.18), transparent 60%),
+      linear-gradient(180deg, #2a0d4a 0%, #1a0833 50%, #0d0420 100%);
+    border: 1px solid rgba(220, 80, 255, 0.28);
+  }
+
+  /* --- Mint：薄荷绿（清新）--- */
+  [data-theme='mint'] .widget-capsule {
+    background:
+      radial-gradient(ellipse at top, rgba(255, 255, 255, 0.6), transparent 60%),
+      linear-gradient(180deg, #d4f0e0 0%, #b8e8d0 50%, #9fd9c0 100%);
+    border: 1px solid rgba(40, 140, 100, 0.28);
+  }
+
+  /* --- Sakura：樱花粉（柔美）--- */
+  [data-theme='sakura'] .widget-capsule {
+    background:
+      radial-gradient(ellipse at top, rgba(255, 255, 255, 0.6), transparent 60%),
+      linear-gradient(180deg, #fcd9e3 0%, #f5b8c8 50%, #eaa0b3 100%);
+    border: 1px solid rgba(200, 80, 120, 0.3);
+  }
+
+  /* --- Sunset：日落橘黄（温暖）--- */
   [data-theme='sunset'] .widget-capsule {
     background:
       radial-gradient(ellipse at top, rgba(255, 255, 255, 0.55), transparent 60%),
-      linear-gradient(180deg, rgba(180, 220, 255, 0.4), rgba(150, 200, 240, 0.32), rgba(120, 180, 230, 0.25));
-    border-color: rgba(100, 160, 220, 0.3);
+      linear-gradient(180deg, #fde6c8 0%, #f8c898 50%, #f0a868 100%);
+    border: 1px solid rgba(200, 120, 40, 0.3);
+  }
+
+  /* --- 浅色主题下：widget 内文字强制深色 --- */
+  [data-theme='mint'] .widget-capsule .tank-label,
+  [data-theme='sakura'] .widget-capsule .tank-label,
+  [data-theme='sunset'] .widget-capsule .tank-label {
+    color: rgba(0, 0, 0, 0.75);
+  }
+  [data-theme='mint'] .widget-capsule .tank-money,
+  [data-theme='sakura'] .widget-capsule .tank-money,
+  [data-theme='sunset'] .widget-capsule .tank-money {
+    color: rgba(0, 0, 0, 0.88);
+    text-shadow: none;
+  }
+  [data-theme='mint'] .widget-capsule .widget-money-block,
+  [data-theme='sakura'] .widget-capsule .widget-money-block,
+  [data-theme='sunset'] .widget-capsule .widget-money-block {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+  [data-theme='mint'] .widget-capsule .widget-section,
+  [data-theme='sakura'] .widget-capsule .widget-section,
+  [data-theme='sunset'] .widget-capsule .widget-section {
+    background: rgba(255, 255, 255, 0.4);
+    color: rgba(0, 0, 0, 0.82);
+  }
+  [data-theme='mint'] .widget-capsule .widget-section-compact,
+  [data-theme='sakura'] .widget-capsule .widget-section-compact,
+  [data-theme='sunset'] .widget-capsule .widget-section-compact {
+    color: rgba(0, 0, 0, 0.82);
+  }
+  [data-theme='mint'] .widget-capsule .bar-track,
+  [data-theme='sakura'] .widget-capsule .bar-track,
+  [data-theme='sunset'] .widget-capsule .bar-track {
+    background: rgba(0, 0, 0, 0.1);
+  }
+  [data-theme='mint'] .widget-capsule .widget-paused-badge,
+  [data-theme='sakura'] .widget-capsule .widget-paused-badge,
+  [data-theme='sunset'] .widget-capsule .widget-paused-badge {
+    background: rgba(245, 158, 66, 0.22);
+    color: #92400e;
+    border-color: rgba(245, 158, 66, 0.4);
+  }
+
+  /* --- Cyber 主题：紫粉辉光文字色 --- */
+  [data-theme='cyber'] .widget-capsule .tank-label {
+    color: rgba(230, 200, 255, 0.85);
+  }
+  [data-theme='cyber'] .widget-capsule .tank-money {
+    color: #fff;
+    text-shadow: 0 0 12px rgba(220, 80, 255, 0.5);
   }
 
   /* 鱼缸装饰：背景气泡（始终浮动） */

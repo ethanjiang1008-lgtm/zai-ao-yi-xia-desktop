@@ -74,7 +74,6 @@ export type WidgetModuleId =
   | 'level'
   | 'xp'
   | 'quote'
-  | 'companion'
   | 'fish'
   | 'status'
   | 'mood'

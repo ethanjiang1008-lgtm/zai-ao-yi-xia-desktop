@@ -39,7 +39,6 @@ const DEFAULT_MODULES: WidgetModuleId[] = [
   'status',
   'xp',
   'quote',
-  'companion',
 ]
 
 export const MODULE_LABELS: Record<WidgetModuleId, string> = {
@@ -47,10 +46,9 @@ export const MODULE_LABELS: Record<WidgetModuleId, string> = {
   progress: '今日进度',
   countdown: '下班倒计时',
   goal: '当前目标',
-  level: '社畜等级',
-  xp: 'XP 进度',
+  level: '职场等级',
+  xp: '经验',
   quote: '今日文案',
-  companion: '搭子',
   fish: '摸鱼计时',
   status: '今日状态',
   mood: '今日心情',

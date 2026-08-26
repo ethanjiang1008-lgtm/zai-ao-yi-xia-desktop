@@ -7,6 +7,7 @@ import { useWidgetStore } from './stores/widgetStore'
 import { useUserStore } from './stores/userStore'
 import { useGoalStore } from './stores/goalStore'
 import { useProgressStore } from './stores/progressStore'
+import { useFishStore } from './stores/fishStore'
 import { useMoodStore } from './stores/moodStore'
 import { useReminderStore } from './stores/reminderStore'
 import { startReminderLoop, stopReminderLoop } from './services/reminders'
@@ -28,12 +29,10 @@ export default function App() {
     }
   }, [theme, label])
 
-  // widget 窗口监听 'theme-changed' 事件
+  // 两个窗口都监听 'theme-changed'（保险：main 也监听，处理极少见的主窗口初次加载时主题不一致）
   useEffect(() => {
-    if (label !== 'widget') return
     let un: (() => void) | undefined
     void tauriListen('theme-changed', (payload) => {
-      // payload 是字符串主题名
       if (payload && typeof payload === 'string') {
         useThemeStore.getState().setTheme(payload as any)
       }
@@ -43,7 +42,29 @@ export default function App() {
     return () => {
       if (un) un()
     }
-  }, [label])
+  }, [])
+
+  // 两个窗口都监听 'fish-changed'：同步鱼状态 + 记录 progress
+  // 设计：发起方不再直接调 progressStore.startFish/endFish，统一由 listener 处理（双方都收到广播，避免重复记录）
+  useEffect(() => {
+    let un: (() => void) | undefined
+    void tauriListen('fish-changed', (payload: any) => {
+      if (!payload) return
+      const { isFishing, startedAt, endedAt } = payload
+      if (isFishing && startedAt) {
+        useFishStore.getState().syncFrom(true, startedAt)
+        useProgressStore.getState().startFish(startedAt)
+      } else if (endedAt) {
+        useFishStore.getState().syncFrom(false, null)
+        useProgressStore.getState().endFish(endedAt)
+      }
+    }).then((u) => {
+      un = u
+    })
+    return () => {
+      if (un) un()
+    }
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement
