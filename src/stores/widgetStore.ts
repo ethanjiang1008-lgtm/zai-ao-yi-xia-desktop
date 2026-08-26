@@ -8,12 +8,19 @@ interface WidgetState {
   alwaysOnTop: boolean
   showCompanion: boolean
   showQuote: boolean
+  /** 悬浮窗字号（仅影响 widget 窗口） */
+  fontSize: number
+  /** 文案刷新间隔（分钟） */
+  quoteInterval: number
   modules: WidgetModuleId[] // 启用并排序
   setSize: (s: WidgetSize) => void
   setOpacity: (n: number) => void
   setAlwaysOnTop: (b: boolean) => void
+  setFontSize: (n: number) => void
+  setQuoteInterval: (n: number) => void
   toggleModule: (m: WidgetModuleId) => void
   moveModule: (m: WidgetModuleId, dir: -1 | 1) => void
+  setModules: (mods: WidgetModuleId[]) => void
   toggleCompanion: () => void
   toggleQuote: () => void
 }
@@ -24,6 +31,12 @@ const DEFAULT_MODULES: WidgetModuleId[] = [
   'countdown',
   'goal',
   'level',
+  'weather',
+  'mood',
+  'fish',
+  'status',
+  'xp',
+  'quote',
   'companion',
 ]
 
@@ -38,6 +51,8 @@ export const MODULE_LABELS: Record<WidgetModuleId, string> = {
   companion: '搭子',
   fish: '摸鱼计时',
   status: '今日状态',
+  weather: '今日天气',
+  mood: '今日心情',
 }
 
 export const useWidgetStore = create<WidgetState>()(
@@ -48,10 +63,14 @@ export const useWidgetStore = create<WidgetState>()(
       alwaysOnTop: true,
       showCompanion: true,
       showQuote: true,
+      fontSize: 13,
+      quoteInterval: 3,
       modules: DEFAULT_MODULES,
       setSize: (size) => set({ size }),
       setOpacity: (opacity) => set({ opacity: Math.max(0.3, Math.min(1, opacity)) }),
       setAlwaysOnTop: (alwaysOnTop) => set({ alwaysOnTop }),
+      setFontSize: (fontSize) => set({ fontSize: Math.max(11, Math.min(18, fontSize)) }),
+      setQuoteInterval: (n) => set({ quoteInterval: Math.max(1, Math.min(60, n)) }),
       toggleModule: (m) =>
         set((s) => {
           const has = s.modules.includes(m)
@@ -68,9 +87,10 @@ export const useWidgetStore = create<WidgetState>()(
           ;[arr[idx], arr[next]] = [arr[next], arr[idx]]
           return { modules: arr }
         }),
+      setModules: (mods) => set({ modules: mods }),
       toggleCompanion: () => set((s) => ({ showCompanion: !s.showCompanion })),
       toggleQuote: () => set((s) => ({ showQuote: !s.showQuote })),
     }),
-    { name: 'zyx-widget' }
+    { name: 'fish-widget' }
   )
 )

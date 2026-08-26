@@ -13,6 +13,7 @@ export interface UserProfile {
   workingDaysPerMonth: number // 每月工作日
   segments: WorkSegment[] // 工作时间段（支持多段，含午休拆分）
   workWeekdays: number[] // 工作日，1=周一…7=周日
+  city?: string // 城市名（用于天气）
 }
 
 export type GoalCategory = '数码' | '美食' | '旅行' | '生活' | '学习' | '其他'
@@ -64,6 +65,10 @@ export interface Stats {
 
 export type WidgetSize = 'S' | 'M' | 'L'
 
+export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy' | 'storm' | 'snow' | 'fog'
+
+export type MoodId = 'great' | 'good' | 'okay' | 'low' | 'tired'
+
 export type WidgetModuleId =
   | 'salary'
   | 'progress'
@@ -75,13 +80,28 @@ export type WidgetModuleId =
   | 'companion'
   | 'fish'
   | 'status'
+  | 'weather'
+  | 'mood'
 
 export interface ToastEvent {
   id: string
-  kind: 'achievement' | 'levelup' | 'goal' | 'info'
+  kind: 'achievement' | 'levelup' | 'goal' | 'reminder' | 'info'
   icon: string
   title: string
   desc: string
 }
 
 export type ThemeId = 'midnight' | 'mint' | 'sakura' | 'sunset' | 'cyber'
+
+export interface ReminderConfig {
+  enabled: boolean
+  startTime: string // "HH:mm"
+  endTime: string // "HH:mm"
+  intervalMinutes: number
+  workdaysOnly: boolean
+}
+
+export interface ReminderSet {
+  water: ReminderConfig
+  stand: ReminderConfig
+}

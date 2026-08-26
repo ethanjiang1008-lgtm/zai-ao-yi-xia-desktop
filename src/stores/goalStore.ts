@@ -91,7 +91,7 @@ export const useGoalStore = create<GoalState>()(
       },
       clearAll: () => set({ goals: [] }),
     }),
-    { name: 'zyx-goals' }
+    { name: 'fish-goals' }
   )
 )
 

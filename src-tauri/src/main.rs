@@ -8,6 +8,7 @@ use tauri::{
     Emitter, Manager, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_notification::NotificationExt;
 
 /// 托盘"今日收入"菜单项句柄，前端通过命令更新文字
 struct TrayState {
@@ -69,6 +70,18 @@ fn set_widget_size(app: tauri::AppHandle, w: f64, h: f64) -> Result<(), String> 
     Ok(())
 }
 
+/// 触发 OS 通知（喝水/站立提醒）
+#[tauri::command]
+fn show_notification(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
+    app.notification()
+        .builder()
+        .title(&title)
+        .body(&body)
+        .show()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -82,12 +95,13 @@ fn main() {
             MacosLauncher::LaunchAgent,
             Some(vec!["--start-hidden"]),
         ))
+        .plugin(tauri_plugin_notification::init())
         .manage(TrayState {
             earnings: Mutex::new(None),
         })
         .setup(|app| {
             // ===== 构建托盘菜单 =====
-            let title = MenuItemBuilder::with_id("title", "再熬一下")
+            let title = MenuItemBuilder::with_id("title", "Fish")
                 .enabled(false)
                 .build(app)?;
             let earnings = MenuItemBuilder::with_id("earnings", "今日 ¥0.00")
@@ -118,7 +132,7 @@ fn main() {
 
             TrayIconBuilder::with_id("tray")
                 .icon(icon)
-                .tooltip("再熬一下")
+                .tooltip("Fish")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
@@ -187,8 +201,9 @@ fn main() {
             show_main,
             toggle_widget,
             set_widget_on_top,
-            set_widget_size
+            set_widget_size,
+            show_notification
         ])
         .run(tauri::generate_context!())
-        .expect("error while running 再熬一下");
+        .expect("error while running Fish");
 }

@@ -1,8 +1,8 @@
 [package]
-name = "zai-ao-yi-xia"
-version = "0.1.0"
+name = "fish"
+version = "0.2.0"
 edition = "2021"
-description = "再熬一下 - 桌面打工人情绪陪伴软件"
+description = "Fish - 桌面打工人情绪陪伴软件"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -11,6 +11,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

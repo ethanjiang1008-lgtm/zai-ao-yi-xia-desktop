@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useUserStore } from '../stores/userStore'
 import { useThemeStore } from '../stores/themeStore'
+import { useWidgetStore } from '../stores/widgetStore'
 import { THEMES } from '../constants/themes'
 import { fenToYuanStr, yuanToFen, safeNum } from '../utils/money'
 import { hhmmToMin } from '../utils/format'
@@ -17,10 +18,13 @@ export default function Settings() {
   const reset = useUserStore((s) => s.reset)
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
-  const fontSize = useThemeStore((s) => s.fontSize)
-  const setFontSize = useThemeStore((s) => s.setFontSize)
   const animations = useThemeStore((s) => s.animations)
   const setAnimations = useThemeStore((s) => s.setAnimations)
+  // 悬浮窗字号（与 DesktopSettings 共用同一个 store，会自动同步）
+  const fontSize = useWidgetStore((s) => s.fontSize)
+  const setFontSize = useWidgetStore((s) => s.setFontSize)
+  const quoteInterval = useWidgetStore((s) => s.quoteInterval)
+  const setQuoteInterval = useWidgetStore((s) => s.setQuoteInterval)
 
   const [salaryInput, setSalaryInput] = useState(String(profile.monthlySalaryFen / 100))
   const [error, setError] = useState('')
@@ -148,13 +152,43 @@ export default function Settings() {
               ))}
             </div>
           </div>
+
           <div>
             <div className="flex justify-between mb-2">
-              <span className="text-sm font-semibold">字体大小</span>
+              <span className="text-sm font-semibold">悬浮窗字号</span>
               <span className="label-dim text-sm">{fontSize}px</span>
             </div>
-            <input type="range" min={13} max={18} step={1} value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))} className="w-full" style={{ accentColor: 'var(--accent)' }} />
+            <input
+              type="range"
+              min={11}
+              max={18}
+              step={1}
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+              className="w-full"
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <div className="text-[11px] label-faint mt-1">仅影响桌面悬浮窗文字，不影响本设置界面</div>
           </div>
+
+          <div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm font-semibold">悬浮窗文案自动刷新</span>
+              <span className="label-dim text-sm">{quoteInterval} 分钟</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={60}
+              step={1}
+              value={quoteInterval}
+              onChange={(e) => setQuoteInterval(Number(e.target.value))}
+              className="w-full"
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <div className="text-[11px] label-faint mt-1">到点自动换一条文案，1000+ 条文案库不重样</div>
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="text-sm">动画效果</span>
             <button className="btn btn-ghost text-xs" onClick={() => setAnimations(!animations)}>{animations ? '已开启' : '已关闭'}</button>

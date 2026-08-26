@@ -3,18 +3,43 @@ import type { WidgetModuleId, WidgetSize } from '../types'
 import { autostartEnable, autostartIsEnabled, setWidgetSize, setWidgetOnTop, isTauri } from '../services/tauri'
 import { useEffect, useState } from 'react'
 import WidgetApp from '../widget/WidgetApp'
+import { useWeatherStore } from '../stores/weatherStore'
+import { useMoodStore, MOOD_LIST, MOOD_META } from '../stores/moodStore'
+import { useReminderStore } from '../stores/reminderStore'
+import { dateStr } from '../utils/format'
 
 const SIZES: { id: WidgetSize; label: string; w: number; h: number }[] = [
   { id: 'S', label: 'S 极简', w: 200, h: 120 },
-  { id: 'M', label: 'M 标准', w: 280, h: 170 },
-  { id: 'L', label: 'L 游戏', w: 340, h: 260 },
+  { id: 'M', label: 'M 标准', w: 280, h: 200 },
+  { id: 'L', label: 'L 游戏', w: 340, h: 280 },
 ]
 
-const ALL_MODULES: WidgetModuleId[] = ['salary', 'progress', 'countdown', 'goal', 'level', 'xp', 'quote', 'companion', 'fish', 'status']
+const ALL_MODULES: WidgetModuleId[] = [
+  'salary',
+  'progress',
+  'countdown',
+  'goal',
+  'level',
+  'xp',
+  'weather',
+  'mood',
+  'fish',
+  'status',
+  'quote',
+  'companion',
+]
 
 export default function DesktopSettings() {
   const ws = useWidgetStore()
   const [autostart, setAutostartState] = useState(false)
+
+  // 天气 / 心情 / 提醒
+  const city = useWeatherStore((s) => s.city)
+  const setCity = useWeatherStore((s) => s.setCity)
+  const todayMood = useMoodStore((s) => s.daily[dateStr(new Date())]) ?? null
+  const setTodayMood = useMoodStore((s) => s.setToday)
+  const reminder = useReminderStore()
+  const [cityInput, setCityInput] = useState(city)
 
   useEffect(() => {
     void autostartIsEnabled().then(setAutostartState)
@@ -61,8 +86,45 @@ export default function DesktopSettings() {
         </div>
       </div>
 
-      {/* 透明度 + 置顶 + 开机启动 */}
+      {/* 外观（字号 / 文案刷新 / 透明度 / 置顶 / 开机启动） */}
       <div className="card p-4 mb-3 space-y-4">
+        <div>
+          <div className="flex justify-between mb-2">
+            <span className="text-sm font-semibold">悬浮窗字号（不影响设置页）</span>
+            <span className="label-dim text-sm">{ws.fontSize}px</span>
+          </div>
+          <input
+            type="range"
+            min={11}
+            max={18}
+            step={1}
+            value={ws.fontSize}
+            onChange={(e) => ws.setFontSize(Number(e.target.value))}
+            className="w-full"
+            style={{ accentColor: 'var(--accent)' }}
+          />
+          <div className="text-[11px] label-faint mt-1">
+            提示：此调整仅影响悬浮窗文字大小，设置页不受影响
+          </div>
+        </div>
+
+        <div>
+          <div className="flex justify-between mb-2">
+            <span className="text-sm font-semibold">文案自动刷新间隔</span>
+            <span className="label-dim text-sm">{ws.quoteInterval} 分钟</span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={60}
+            step={1}
+            value={ws.quoteInterval}
+            onChange={(e) => ws.setQuoteInterval(Number(e.target.value))}
+            className="w-full"
+            style={{ accentColor: 'var(--accent)' }}
+          />
+        </div>
+
         <div>
           <div className="flex justify-between mb-2">
             <span className="text-sm font-semibold">透明度</span>
@@ -101,9 +163,76 @@ export default function DesktopSettings() {
         </div>
       </div>
 
-      {/* 模块配置 */}
+      {/* 天气 + 心情（新增模块配置） */}
+      <div className="card p-4 mb-3">
+        <div className="font-semibold text-sm mb-3">天气 / 心情</div>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm block mb-1">所在城市</label>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1"
+                type="text"
+                value={cityInput}
+                onChange={(e) => setCityInput(e.target.value)}
+                placeholder="深圳"
+              />
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const c = cityInput.trim()
+                  if (c) setCity(c)
+                }}
+              >
+                保存
+              </button>
+            </div>
+            <div className="text-[11px] label-faint mt-1">
+              当前：{city || '未设置'}。天气按 (日期+城市) 离线生成，确定性展示。
+            </div>
+          </div>
+          <div>
+            <div className="text-sm mb-2">今日心情</div>
+            <div className="flex gap-2 flex-wrap">
+              {MOOD_LIST.map((m) => (
+                <button
+                  key={m}
+                  className={`btn text-sm px-3 py-1.5 ${todayMood === m ? 'btn-primary' : ''}`}
+                  onClick={() => setTodayMood(m)}
+                >
+                  {MOOD_META[m].emoji} {MOOD_META[m].label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 喝水 / 站立提醒（用户自定义时间） */}
+      <div className="card p-4 mb-3">
+        <div className="font-semibold text-sm mb-3">喝水 / 站立提醒</div>
+        <div className="space-y-5">
+          <ReminderEditor
+            kind="water"
+            title="💧 喝水提醒"
+            config={reminder.water}
+            onChange={(patch) => reminder.setWater(patch)}
+          />
+          <ReminderEditor
+            kind="stand"
+            title="🧍 站立提醒"
+            config={reminder.stand}
+            onChange={(patch) => reminder.setStand(patch)}
+          />
+        </div>
+      </div>
+
+      {/* 模块配置（修复 #6 排序） */}
       <div className="card p-4">
-        <div className="font-semibold text-sm mb-3">显示模块（可开关 · 排序）</div>
+        <div className="font-semibold text-sm mb-1">显示模块（可开关 · 排序）</div>
+        <div className="text-[11px] label-faint mb-3">
+          顺序 = 悬浮窗中从上到下的显示顺序，已启用的模块按以下顺序排列。
+        </div>
         <div className="space-y-1.5">
           {ALL_MODULES.map((m) => {
             const enabled = ws.modules.includes(m)
@@ -116,13 +245,80 @@ export default function DesktopSettings() {
                 </div>
                 {enabled && (
                   <div className="flex gap-1">
-                    <button className="btn btn-ghost text-xs px-2" disabled={idx === 0} onClick={() => ws.moveModule(m, -1)}>↑</button>
-                    <button className="btn btn-ghost text-xs px-2" disabled={idx === ws.modules.length - 1} onClick={() => ws.moveModule(m, 1)}>↓</button>
+                    <button className="btn btn-ghost text-xs px-2" disabled={idx <= 0} onClick={() => ws.moveModule(m, -1)}>↑</button>
+                    <button className="btn btn-ghost text-xs px-2" disabled={idx >= ws.modules.length - 1} onClick={() => ws.moveModule(m, 1)}>↓</button>
                   </div>
                 )}
               </div>
             )
           })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ReminderEditor({
+  kind,
+  title,
+  config,
+  onChange,
+}: {
+  kind: 'water' | 'stand'
+  title: string
+  config: { enabled: boolean; startTime: string; endTime: string; intervalMinutes: number; workdaysOnly: boolean }
+  onChange: (patch: Partial<typeof config>) => void
+}) {
+  return (
+    <div className="rounded-lg p-3" style={{ background: 'var(--card)' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-semibold text-sm">{title}</div>
+        <Toggle on={config.enabled} onChange={(b) => onChange({ enabled: b })} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <label className="label-dim block mb-1">开始时间</label>
+          <input
+            className="input"
+            type="time"
+            value={config.startTime}
+            onChange={(e) => onChange({ startTime: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label-dim block mb-1">结束时间</label>
+          <input
+            className="input"
+            type="time"
+            value={config.endTime}
+            onChange={(e) => onChange({ endTime: e.target.value })}
+          />
+        </div>
+        <div className="col-span-2">
+          <div className="flex justify-between mb-1">
+            <label className="label-dim">间隔（分钟）</label>
+            <span className="label-dim">{config.intervalMinutes} 分钟</span>
+          </div>
+          <input
+            type="range"
+            min={5}
+            max={120}
+            step={5}
+            value={config.intervalMinutes}
+            onChange={(e) => onChange({ intervalMinutes: Number(e.target.value) })}
+            className="w-full"
+            style={{ accentColor: 'var(--accent)' }}
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.workdaysOnly}
+              onChange={(e) => onChange({ workdaysOnly: e.target.checked })}
+            />
+            <span>仅工作日提醒（按你设置的每周工作日）</span>
+          </label>
         </div>
       </div>
     </div>

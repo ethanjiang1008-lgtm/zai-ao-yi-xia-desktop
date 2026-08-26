@@ -68,7 +68,7 @@ export const useProgressStore = create<ProgressState>()(
         set({ records: {}, totalFishMinutes: 0, unlocked: {}, lastLevel: 1, fishSessionStart: null }),
     }),
     {
-      name: 'zyx-progress',
+      name: 'fish-progress',
       partialize: (s) => ({
         records: s.records,
         totalFishMinutes: s.totalFishMinutes,

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "再熬一下",
-  "version": "0.1.0",
-  "identifier": "com.zayaoyixia.app",
+  "productName": "Fish",
+  "version": "0.2.0",
+  "identifier": "com.fish.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "再熬一下",
+        "title": "Fish",
         "width": 960,
         "height": 680,
         "minWidth": 720,
@@ -25,9 +25,9 @@
       },
       {
         "label": "widget",
-        "title": "再熬一下 · 桌面卡片",
+        "title": "Fish · 桌面卡片",
         "width": 280,
-        "height": 170,
+        "height": 200,
         "minWidth": 180,
         "minHeight": 110,
         "decorations": false,
@@ -54,9 +54,9 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "publisher": "再熬一下",
+    "publisher": "Fish",
     "category": "Lifestyle",
-    "shortDescription": "桌面上的一件数字小物件，陪打工人熬过一天",
-    "longDescription": "把上班转换成实时可视化的收入、进度、目标和游戏反馈，让用户在疲惫、烦躁、想摸鱼的时候获得一点轻松、掌控感和情绪价值。"
+    "shortDescription": "桌面上的数字小鱼，陪打工人熬过一天",
+    "longDescription": "Fish 把上班转换成实时可视化的收入、进度、天气、心情和游戏反馈，让你在疲惫、烦躁、想摸鱼的时候获得一点轻松、掌控感和情绪价值。"
   }
 }

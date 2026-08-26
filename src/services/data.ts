@@ -1,12 +1,13 @@
-// 数据导出/导入/清空（需求第二十八节"数据"设置）
+// 数据导出/导入/清空（支持新旧两套 key，前缀 zyx- / fish- 都识别）
 
-const ZYX_PREFIX = 'zyx-'
+const KEY_PREFIXES = ['zyx-', 'fish-']
+const PREFIX_RE = /^(zyx|fish)-/
 
 export function exportData(): string {
   const data: Record<string, string | null> = {}
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)
-    if (k && k.startsWith(ZYX_PREFIX)) {
+    if (k && PREFIX_RE.test(k)) {
       data[k] = localStorage.getItem(k)
     }
   }
@@ -20,7 +21,7 @@ export function downloadExport(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `zai-ao-yi-xia-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.download = `fish-backup-${new Date().toISOString().slice(0, 10)}.json`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -40,7 +41,7 @@ export async function importData(file: File): Promise<ImportResult> {
     }
     let count = 0
     for (const k of Object.keys(obj)) {
-      if (k.startsWith(ZYX_PREFIX) || k === '__exported_at') {
+      if (PREFIX_RE.test(k) || k === '__exported_at') {
         const v = obj[k]
         if (typeof v === 'string') {
           localStorage.setItem(k, v)
@@ -58,7 +59,7 @@ export function clearAllData(): void {
   const keys: string[] = []
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)
-    if (k && k.startsWith(ZYX_PREFIX)) keys.push(k)
+    if (k && PREFIX_RE.test(k)) keys.push(k)
   }
   keys.forEach((k) => localStorage.removeItem(k))
 }

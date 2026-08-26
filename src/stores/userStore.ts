@@ -25,7 +25,7 @@ export const useUserStore = create<UserState>()(
       completeOnboarding: (p) => set({ profile: p, onboarded: true }),
       reset: () => set({ profile: null, onboarded: false }),
     }),
-    { name: 'zyx-user' }
+    { name: 'fish-user' }
   )
 )
 

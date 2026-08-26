@@ -119,8 +119,14 @@ body {
 }
 
 body.widget-body {
-  background: transparent !important;
+  background: var(--card-solid) !important;
   overflow: hidden;
+}
+
+/* 悬浮窗：让根容器和 widget-root 背景对齐，去除底部/轮廓灰色边缘 */
+body.widget-body #root,
+body.widget-body .widget-root {
+  background: var(--card-solid);
 }
 
 #root {
@@ -141,6 +147,12 @@ body.widget-body {
     border: none;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
+  }
+
+  /* 悬浮窗 body 下：让卡片无阴影、无外边距，背景与 body 融为一体 */
+  body.widget-body .widget-card {
+    box-shadow: none;
+    border-radius: var(--radius);
   }
 
   .glass {

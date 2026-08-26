@@ -231,7 +231,7 @@ export default function Onboarding() {
                 日薪 ¥{dailyWage.toFixed(0)} · 时薪 ¥{hourly.toFixed(2)} · 每日工时 {totalHours.toFixed(1)}h
               </p>
               <p className="mt-4 text-sm" style={{ color: 'var(--accent)' }}>
-                再熬一下。
+                上鱼，准备就绪。
               </p>
             </div>
           </div>
