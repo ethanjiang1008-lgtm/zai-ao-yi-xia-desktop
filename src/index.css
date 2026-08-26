@@ -135,10 +135,10 @@ body.widget-body {
 
 /* ===== Components ===== */
 @layer components {
-  /* 悬浮窗卡片：在透明窗口上需要足够不透明的背景才可见 */
+  /* 悬浮窗卡片：在透明窗口上需要足够不透明的背景才可见，无边框 */
   .widget-card {
     background: var(--card-solid);
-    border: 1px solid var(--border);
+    border: none;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
   }
