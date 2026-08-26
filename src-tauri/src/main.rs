@@ -60,6 +60,15 @@ fn set_widget_on_top(app: tauri::AppHandle, on_top: bool) -> Result<(), String> 
     Ok(())
 }
 
+#[tauri::command]
+fn set_widget_size(app: tauri::AppHandle, w: f64, h: f64) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("widget") {
+        win.set_size(tauri::LogicalSize::new(w, h))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -177,7 +186,8 @@ fn main() {
             update_tray_earnings,
             show_main,
             toggle_widget,
-            set_widget_on_top
+            set_widget_on_top,
+            set_widget_size
         ])
         .run(tauri::generate_context!())
         .expect("error while running 再熬一下");
