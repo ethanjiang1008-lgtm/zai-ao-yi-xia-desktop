@@ -15,7 +15,6 @@ import { startDragging, isTauri, tauriInvoke, tauriListen } from '../services/ta
 import { ProgressBar } from '../components/ui'
 import { useProgressStore } from '../stores/progressStore'
 import { useToastStore } from '../stores/toastStore'
-import { useWeatherStore, deriveWeather, deriveTempC, WEATHER_META } from '../stores/weatherStore'
 import { useMoodStore, MOOD_META } from '../stores/moodStore'
 import type { WidgetModuleId } from '../types'
 
@@ -28,26 +27,22 @@ export default function WidgetApp({ previewMode = false }: Props) {
   const onboarded = useUserStore((s) => s.onboarded)
   const ws = useWidgetStore()
   const [now, setNow] = useState(() => new Date())
-  const [quoteTick, setQuoteTick] = useState(0) // 触发文案定时刷新
+  const [quoteTick, setQuoteTick] = useState(0)
 
-  // fish store
   const isFishing = useFishStore((s) => s.isFishing)
   const fishSeconds = useFishStore((s) => s.fishSeconds)
   const fishCostFen = useFishStore((s) => s.fishCostFen)
   const fishToggle = useFishStore((s) => s.toggle)
   const fishEnd = useFishStore((s) => s.endAndReport)
+  const fishTick = useFishStore((s) => s.tick)
 
-  // 天气 / 心情
-  const city = useWeatherStore((s) => s.city)
   const moodToday = useMoodStore((s) => s.daily[dateStr(new Date())]) ?? null
 
-  // clock
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  // 文案定时刷新（默认 3 分钟，可由用户在 widget 配置改）
   useEffect(() => {
     if (previewMode) return
     const minutes = Math.max(1, Math.min(60, ws.quoteInterval || 3))
@@ -55,7 +50,6 @@ export default function WidgetApp({ previewMode = false }: Props) {
     return () => clearInterval(id)
   }, [ws.quoteInterval, previewMode])
 
-  // 监听托盘摸鱼事件
   useEffect(() => {
     if (!isTauri || previewMode) return
     void tauriListen('tray-action', (payload) => {
@@ -73,8 +67,6 @@ export default function WidgetApp({ previewMode = false }: Props) {
       fishTick(snap.perSecondFen)
     }
   }, [now]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fishTick = useFishStore((s) => s.tick)
 
   const doToggleFish = () => {
     if (isFishing) {
@@ -115,34 +107,27 @@ export default function WidgetApp({ previewMode = false }: Props) {
   const goalInfo = currentGoal ? goalProgress(currentGoal, stats.totalEarnedFen) : null
   const status = getTodayStatus(now)
   const scene = sceneForState(snap.state, now.getDay(), now.getHours(), snap.nearOff)
-  // quoteTick 进入 seedKey，使每次定时刷新后文案换一条
   const quote = ws.showQuote ? pickQuote(scene, dateStr(now) + scene + '|' + quoteTick) : ''
   const companion = ws.showCompanion ? companionMessage(now, snap, fenToYuanLabel(snap.earnedFen)) : ''
-  const todayKey = dateStr(now)
-  const weatherCond = deriveWeather(todayKey, city || '深圳', Math.floor(now.getHours() / 3))
-  const weatherTemp = deriveTempC(weatherCond, todayKey)
-  const weatherMeta = WEATHER_META[weatherCond]
   const moodMeta = moodToday ? MOOD_META[moodToday] : null
+  const earnedLabel = fenToYuanLabel(snap.earnedFen)
+  const perSecLabel = perSecondLabel(snap.perSecondFen)
 
   const openMain = () => void tauriInvoke('show_main')
   const hideWidget = () => void tauriInvoke('toggle_widget')
 
-  const fishProps = { isFishing, fishSeconds, fishCostFen }
-  const earnedLabel = fenToYuanLabel(snap.earnedFen)
-
   return (
     <div
       className="widget-root group w-full h-full"
-      style={{ opacity: ws.opacity, padding: previewMode ? 0 : 3 }}
+      style={{ opacity: ws.opacity, padding: previewMode ? 0 : 4 }}
       onMouseDown={handleDrag}
     >
       <div
         className="widget-card w-full h-full flex flex-col relative overflow-hidden"
-        style={{ borderRadius: 16, background: 'var(--card-solid)' }}
+        style={{ borderRadius: 18, background: 'var(--card-solid)' }}
       >
-        {/* hover 控制栏 */}
         {!previewMode && (
-          <div className="absolute top-0.5 right-0.5 z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" data-nodrag>
+          <div className="absolute top-1 right-1 z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" data-nodrag>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('S')}>S</button>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('M')}>M</button>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('L')}>L</button>
@@ -154,10 +139,8 @@ export default function WidgetApp({ previewMode = false }: Props) {
         {ws.size === 'S' && (
           <SizeS
             snap={snap}
-            has={has(ws.modules)}
             earnedLabel={earnedLabel}
-            weatherEmoji={weatherMeta.emoji}
-            weatherTemp={weatherTemp}
+            perSecLabel={perSecLabel}
             moodEmoji={moodMeta?.emoji ?? null}
           />
         )}
@@ -166,12 +149,10 @@ export default function WidgetApp({ previewMode = false }: Props) {
             snap={snap}
             modules={ws.modules}
             has={has(ws.modules)}
-            quote={quote}
             earnedLabel={earnedLabel}
-            weatherMeta={weatherMeta}
-            weatherTemp={weatherTemp}
+            perSecLabel={perSecLabel}
             moodMeta={moodMeta}
-            city={city}
+            quote={quote}
           />
         )}
         {ws.size === 'L' && (
@@ -186,11 +167,9 @@ export default function WidgetApp({ previewMode = false }: Props) {
             companion={companion}
             status={status}
             earnedLabel={earnedLabel}
-            fishProps={fishProps}
+            perSecLabel={perSecLabel}
+            fishProps={{ isFishing, fishSeconds, fishCostFen }}
             onFish={doToggleFish}
-            weatherMeta={weatherMeta}
-            weatherTemp={weatherTemp}
-            city={city}
             moodMeta={moodMeta}
           />
         )}
@@ -199,7 +178,6 @@ export default function WidgetApp({ previewMode = false }: Props) {
   )
 }
 
-/** has(模块列表) 工厂 */
 function has(modules: WidgetModuleId[]) {
   return (m: WidgetModuleId) => modules.includes(m)
 }
@@ -207,34 +185,25 @@ function has(modules: WidgetModuleId[]) {
 /* ===== S 极简 ===== */
 function SizeS({
   snap,
-  has,
   earnedLabel,
-  weatherEmoji,
-  weatherTemp,
+  perSecLabel,
   moodEmoji,
 }: {
   snap: TodaySnapshot
-  has: (m: WidgetModuleId) => boolean
   earnedLabel: string
-  weatherEmoji: string
-  weatherTemp: number
+  perSecLabel: string
   moodEmoji: string | null
 }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center px-3">
-      <div className="text-2xl font-bold accent-text">{earnedLabel}</div>
-      <div className="label-faint text-[10px] mt-0.5">今日已赚</div>
-      {/* 顶角：天气 + 心情 */}
-      <div className="absolute top-1 left-1.5 flex gap-1.5 text-[10px] opacity-80">
-        <span>{weatherEmoji} {weatherTemp}°</span>
-        {moodEmoji && <span>{moodEmoji}</span>}
+    <div className="flex-1 flex flex-col gap-1.5 p-2 overflow-hidden">
+      <div className="widget-section flex-1 flex flex-col items-center justify-center text-center">
+        <div className="text-[10px] label-faint mb-0.5">今日已赚 · {perSecLabel}</div>
+        <div className="text-2xl font-bold accent-text leading-tight">{earnedLabel}</div>
+        {moodEmoji && <div className="text-xs mt-1 label-dim">{moodEmoji} 今日心情</div>}
       </div>
-      {/* hover 展开额外信息 */}
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] mt-2 label-dim">
-        <div>进度 {Math.round(snap.progress * 100)}%</div>
-        {snap.state !== 'after' && snap.state !== 'offday' && (
-          <div>下班 {fmtHMS(snap.secondsToOff)}</div>
-        )}
+      <div className="widget-section widget-section-compact flex items-center justify-between text-[10px]">
+        <span className="label-faint">进度</span>
+        <span className="font-mono font-semibold">{Math.round(snap.progress * 100)}%</span>
       </div>
     </div>
   )
@@ -245,95 +214,80 @@ function SizeM({
   snap,
   modules,
   has,
-  quote,
   earnedLabel,
-  weatherMeta,
-  weatherTemp,
+  perSecLabel,
   moodMeta,
-  city,
+  quote,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
   has: (m: WidgetModuleId) => boolean
-  quote: string
   earnedLabel: string
-  weatherMeta: { label: string; emoji: string }
-  weatherTemp: number
+  perSecLabel: string
   moodMeta: { label: string; emoji: string } | null
-  city: string
+  quote: string
 }) {
-  // 渲染顺序 = 用户在 modules 数组里的顺序
   return (
-    <div className="flex-1 flex flex-col px-2.5 py-2 gap-1.5">
-      {/* 第一行：收入 + 天气 + 心情 */}
-      {(() => null)()}
-      {/* 顶行固定按模块顺序拼 */}
-      <ModuleRow
-        modules={modules}
-        renderModule={(m) => {
-          if (m === 'salary') {
-            return (
-              <span className="text-2xl font-bold accent-text">{earnedLabel}</span>
-            )
-          }
-          if (m === 'weather') {
-            return (
-              <span className="text-xs label-dim shrink-0">
-                {weatherMeta.emoji} {weatherTemp}° {city ? '' : ''}
-              </span>
-            )
-          }
-          if (m === 'mood') {
-            return moodMeta ? (
-              <span className="text-xs shrink-0">{moodMeta.emoji} {moodMeta.label}</span>
-            ) : (
-              <span className="text-[10px] label-faint shrink-0">心情未选</span>
-            )
-          }
-          if (m === 'progress') {
-            return <span className="label-dim text-[10px]">进度 {Math.round(snap.progress * 100)}%</span>
-          }
-          if (m === 'countdown') {
-            return (
-              <span className="label-dim text-[10px]">
-                {snap.state === 'after' ? '已下班 🎉' : snap.state === 'offday' ? '休息中' : `距离下班 ${fmtHMS(snap.secondsToOff)}`}
-              </span>
-            )
-          }
-          return null
-        }}
-      />
-      {/* 进度条（如果启用了 progress） */}
-      {has('progress') && (
-        <div className="px-0.5">
-          <ProgressBar value={snap.progress} height={4} />
+    <div className="flex-1 flex flex-col gap-1.5 p-2 overflow-hidden">
+      {/* 收入主块：最大、最显眼 */}
+      {has('salary') && (
+        <div className="widget-section flex items-center justify-between">
+          <div>
+            <div className="text-[10px] label-faint">今日已赚</div>
+            <div className="text-xl font-bold accent-text leading-none mt-0.5">{earnedLabel}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] label-faint">{perSecLabel}</div>
+            {moodMeta && (
+              <div className="text-[10px] mt-0.5">{moodMeta.emoji}</div>
+            )}
+          </div>
         </div>
       )}
+
+      {/* 进度 + 倒计时 + 心情：紧凑行 */}
+      {(has('progress') || has('countdown') || has('mood')) && (
+        <div className="grid grid-cols-2 gap-1.5">
+          {has('progress') && (
+            <div className="widget-section widget-section-compact">
+              <div className="flex justify-between text-[10px] mb-1">
+                <span className="label-faint">今日进度</span>
+                <span className="label-dim font-mono">{Math.round(snap.progress * 100)}%</span>
+              </div>
+              <ProgressBar value={snap.progress} height={3} />
+            </div>
+          )}
+          {has('countdown') && (
+            <div className="widget-section widget-section-compact">
+              <div className="text-[10px] label-faint">下班</div>
+              <div className="text-[12px] font-mono font-bold leading-tight">
+                {snap.state === 'after' ? '🎉 已下班' : snap.state === 'offday' ? '休息' : fmtHMS(snap.secondsToOff)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 心情单行（如启用） */}
+      {has('mood') && (
+        <div className="widget-section widget-section-compact flex items-center justify-between text-[10px]">
+          <span className="label-faint">今日心情</span>
+          {moodMeta ? (
+            <span>{moodMeta.emoji} {moodMeta.label}</span>
+          ) : (
+            <span className="label-faint">未选</span>
+          )}
+        </div>
+      )}
+
       {/* 文案 */}
-      {has('quote') && quote && <div className="label-faint text-[10px] truncate">{quote}</div>}
+      {has('quote') && quote && (
+        <div className="widget-section widget-section-compact text-[10px] label-faint truncate">
+          {quote}
+        </div>
+      )}
     </div>
   )
-}
-
-/* 工具：按 modules 顺序拼接 React 节点；用 Fragment 隔开以保持横排 */
-function ModuleRow({
-  modules,
-  renderModule,
-  gap = 8,
-}: {
-  modules: WidgetModuleId[]
-  renderModule: (m: WidgetModuleId) => React.ReactNode
-  gap?: number
-}) {
-  const items: React.ReactNode[] = []
-  modules.forEach((m) => {
-    const node = renderModule(m)
-    if (node != null) {
-      if (items.length > 0) items.push(<span key={`g-${m}`} style={{ width: gap }} />)
-      items.push(<span key={m}>{node}</span>)
-    }
-  })
-  return <div className="flex items-baseline gap-0 flex-wrap">{items}</div>
 }
 
 /* ===== L 游戏模式 ===== */
@@ -348,11 +302,9 @@ function SizeL({
   companion,
   status,
   earnedLabel,
+  perSecLabel,
   fishProps,
   onFish,
-  weatherMeta,
-  weatherTemp,
-  city,
   moodMeta,
 }: {
   snap: TodaySnapshot
@@ -365,123 +317,155 @@ function SizeL({
   companion: string
   status: ReturnType<typeof getTodayStatus>
   earnedLabel: string
+  perSecLabel: string
   fishProps: { isFishing: boolean; fishSeconds: number; fishCostFen: number }
   onFish: () => void
-  weatherMeta: { label: string; emoji: string }
-  weatherTemp: number
-  city: string
   moodMeta: { label: string; emoji: string } | null
 }) {
-  // 每个模块的渲染器
-  const renderers: Record<WidgetModuleId, () => React.ReactNode> = {
+  // 每个模块的渲染器，返回 (node, isCompact)
+  type RenderResult = { node: React.ReactNode; compact?: boolean } | null
+  const renderers: Record<WidgetModuleId, () => RenderResult> = {
     level: () =>
-      levelInfo ? (
-        <div className="flex items-center gap-1.5">
-          <span className="accent-grad text-white text-[9px] font-bold px-1.5 py-0.5 rounded">Lv.{levelInfo.level}</span>
-          <span className="text-[11px] font-semibold">{levelInfo.title}</span>
-        </div>
-      ) : null,
-    salary: () => (
-      <div className="text-center">
-        <div className="text-2xl font-bold accent-text">{earnedLabel}</div>
-        <div className="label-faint text-[9px]">{perSecondLabel(snap.perSecondFen)}</div>
-      </div>
-    ),
-    progress: () => (
-      <div>
-        <div className="flex justify-between text-[9px] mb-0.5">
-          <span className="label-dim">今日进度</span>
-          <span className="label-dim">{Math.round(snap.progress * 100)}%</span>
-        </div>
-        <ProgressBar value={snap.progress} height={4} />
-      </div>
-    ),
-    countdown: () => (
-      <div className="text-center">
-        <div className="label-faint text-[9px]">下班倒计时</div>
-        <div className="font-mono text-base font-bold">
-          {snap.state === 'after' ? '下班 🎉' : snap.state === 'offday' ? '休息日' : fmtHMS(snap.secondsToOff)}
-        </div>
-      </div>
-    ),
-    goal: () =>
-      currentGoal && goalInfo ? (
-        <div>
-          <div className="flex items-center gap-1 text-[9px] mb-0.5">
-            <span>{currentGoal.emoji}</span>
-            <span className="label-dim truncate">{currentGoal.name}</span>
-            <span className="label-dim ml-auto">{Math.round(goalInfo.progress * 100)}%</span>
+      levelInfo
+        ? {
+            node: (
+              <div className="flex items-center gap-2">
+                <span className="accent-grad text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Lv.{levelInfo.level}</span>
+                <span className="text-[12px] font-semibold">{levelInfo.title}</span>
+              </div>
+            ),
+          }
+        : null,
+    salary: () => ({
+      node: (
+        <div className="flex items-baseline justify-between">
+          <div>
+            <div className="text-[10px] label-faint">今日已赚</div>
+            <div className="text-2xl font-bold accent-text leading-none mt-0.5">{earnedLabel}</div>
           </div>
-          <ProgressBar value={goalInfo.progress} height={4} />
-        </div>
-      ) : null,
-    xp: () => (
-      <div>
-        <div className="flex justify-between text-[9px] mb-0.5">
-          <span className="label-dim">XP</span>
-          <span className="label-dim">{levelInfo.currentXp}/{levelInfo.needXp}</span>
-        </div>
-        <ProgressBar value={levelInfo.progress} height={3} />
-      </div>
-    ),
-    status: () => (
-      <div className="flex items-center gap-1.5 text-[10px]">
-        <span>{status.emoji}</span>
-        <span className="label-dim">{status.statusLabel} · 动力 {status.motivation}%</span>
-      </div>
-    ),
-    fish: () => (
-      <div className="flex items-center justify-between text-[10px]" data-nodrag>
-        <div>
-          {fishProps.isFishing ? (
-            <span className="font-mono font-bold">{fmtHMS(fishProps.fishSeconds)} · {fenToYuanLabel(fishProps.fishCostFen)}</span>
-          ) : (
-            <span className="label-dim">🐟 摸鱼一下</span>
-          )}
-        </div>
-        <button className="btn text-[9px] px-1.5 py-0.5" onClick={onFish}>
-          {fishProps.isFishing ? '停' : '鱼'}
-        </button>
-      </div>
-    ),
-    quote: () => (quote ? <div className="label-faint text-[10px] text-center truncate">{quote}</div> : null),
-    companion: () =>
-      companion ? (
-        <div className="flex items-start gap-1.5 text-[10px]">
-          <span>🐱</span>
-          <span className="label-dim">{companion}</span>
-        </div>
-      ) : null,
-    weather: () => (
-      <div className="flex items-center gap-1.5 text-[10px]">
-        <span className="text-base leading-none">{weatherMeta.emoji}</span>
-        <div className="flex flex-col leading-tight">
-          <span>{weatherTemp}°C</span>
-          <span className="label-faint text-[9px]">{weatherMeta.label}{city ? ' · ' + city : ''}</span>
-        </div>
-      </div>
-    ),
-    mood: () =>
-      moodMeta ? (
-        <div className="flex items-center gap-1.5 text-[10px]">
-          <span className="text-base leading-none">{moodMeta.emoji}</span>
-          <span className="label-dim">今日心情 · {moodMeta.label}</span>
-        </div>
-      ) : (
-        <div className="flex items-center gap-1.5 text-[10px]">
-          <span className="text-base leading-none opacity-50">😐</span>
-          <span className="label-faint">未选心情</span>
+          <div className="text-right text-[10px] label-faint">{perSecLabel}</div>
         </div>
       ),
+    }),
+    progress: () => ({
+      node: (
+        <div>
+          <div className="flex justify-between text-[10px] mb-1">
+            <span className="label-faint">今日进度</span>
+            <span className="label-dim font-mono">{Math.round(snap.progress * 100)}%</span>
+          </div>
+          <ProgressBar value={snap.progress} height={4} />
+        </div>
+      ),
+    }),
+    countdown: () => ({
+      node: (
+        <div className="text-center">
+          <div className="text-[10px] label-faint">下班倒计时</div>
+          <div className="font-mono text-base font-bold mt-0.5">
+            {snap.state === 'after' ? '🎉 已下班' : snap.state === 'offday' ? '休息日' : fmtHMS(snap.secondsToOff)}
+          </div>
+        </div>
+      ),
+    }),
+    goal: () =>
+      currentGoal && goalInfo
+        ? {
+            node: (
+              <div>
+                <div className="flex items-center gap-1.5 text-[10px] mb-1">
+                  <span className="text-sm">{currentGoal.emoji}</span>
+                  <span className="label-dim truncate flex-1">{currentGoal.name}</span>
+                  <span className="label-dim font-mono">{Math.round(goalInfo.progress * 100)}%</span>
+                </div>
+                <ProgressBar value={goalInfo.progress} height={4} />
+              </div>
+            ),
+          }
+        : null,
+    xp: () => ({
+      node: (
+        <div>
+          <div className="flex justify-between text-[10px] mb-1">
+            <span className="label-faint">XP</span>
+            <span className="label-dim font-mono">{levelInfo.currentXp}/{levelInfo.needXp}</span>
+          </div>
+          <ProgressBar value={levelInfo.progress} height={3} />
+        </div>
+      ),
+    }),
+    status: () => ({
+      node: (
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-sm">{status.emoji}</span>
+          <span className="label-dim">{status.statusLabel}</span>
+          <span className="ml-auto label-faint">动力 {status.motivation}%</span>
+        </div>
+      ),
+    }),
+    fish: () => ({
+      node: (
+        <div className="flex items-center justify-between" data-nodrag>
+          <div className="text-[11px]">
+            {fishProps.isFishing ? (
+              <span className="font-mono font-semibold">
+                ⏱ {fmtHMS(fishProps.fishSeconds)} · {fenToYuanLabel(fishProps.fishCostFen)}
+              </span>
+            ) : (
+              <span className="label-faint">🐟 摸一下鱼</span>
+            )}
+          </div>
+          <button className="btn text-[10px] px-2 py-0.5" onClick={onFish}>
+            {fishProps.isFishing ? '⏹ 停' : '▶ 鱼'}
+          </button>
+        </div>
+      ),
+    }),
+    quote: () =>
+      quote
+        ? { node: <div className="text-[10px] label-faint text-center leading-snug">{quote}</div>, compact: true }
+        : null,
+    companion: () =>
+      companion
+        ? {
+            node: (
+              <div className="flex items-start gap-2 text-[10px]">
+                <span className="text-sm shrink-0">🐱</span>
+                <span className="label-dim leading-snug">{companion}</span>
+              </div>
+            ),
+          }
+        : null,
+    mood: () => ({
+      node: (
+        <div className="flex items-center gap-2 text-[10px]">
+          {moodMeta ? (
+            <>
+              <span className="text-sm">{moodMeta.emoji}</span>
+              <span className="label-dim">今日心情 · {moodMeta.label}</span>
+            </>
+          ) : (
+            <>
+              <span className="text-sm opacity-50">😐</span>
+              <span className="label-faint">未选心情</span>
+            </>
+          )}
+        </div>
+      ),
+    }),
   }
 
   return (
-    <div className="flex-1 flex flex-col px-2.5 py-2 gap-1.5 overflow-y-auto">
+    <div className="flex-1 flex flex-col gap-1.5 p-2 overflow-y-auto">
       {modules.map((m) => {
         if (!has(m)) return null
-        const node = renderers[m]()
-        if (node == null) return null
-        return <div key={m}>{node}</div>
+        const r = renderers[m]()
+        if (!r) return null
+        return (
+          <div key={m} className={r.compact ? 'widget-section widget-section-compact' : 'widget-section'}>
+            {r.node}
+          </div>
+        )
       })}
     </div>
   )

@@ -7,7 +7,6 @@ import { useWidgetStore } from './stores/widgetStore'
 import { useUserStore } from './stores/userStore'
 import { useGoalStore } from './stores/goalStore'
 import { useProgressStore } from './stores/progressStore'
-import { useWeatherStore } from './stores/weatherStore'
 import { useMoodStore } from './stores/moodStore'
 import { useReminderStore } from './stores/reminderStore'
 import { startReminderLoop, stopReminderLoop } from './services/reminders'
@@ -22,7 +21,6 @@ export default function App() {
     void initWindowLabel().then((l) => setLabel(l))
   }, [])
 
-  // 主题应用；字号仅在悬浮窗生效
   useEffect(() => {
     const root = document.documentElement
     root.setAttribute('data-theme', theme)
@@ -35,13 +33,11 @@ export default function App() {
     else root.classList.add('no-anim')
   }, [theme, widgetFontSize, animations, label])
 
-  // widget 窗口用透明 body
   useEffect(() => {
     if (label === 'widget') document.body.classList.add('widget-body')
     else document.body.classList.remove('widget-body')
   }, [label])
 
-  // 跨窗口 store 同步：主窗口改设置时，widget 窗口通过 storage 事件感知
   useEffect(() => {
     const handler = (e: StorageEvent) => {
       if (e.key === null) {
@@ -50,7 +46,6 @@ export default function App() {
         useUserStore.persist?.rehydrate?.()
         useGoalStore.persist?.rehydrate?.()
         useProgressStore.persist?.rehydrate?.()
-        useWeatherStore.persist?.rehydrate?.()
         useMoodStore.persist?.rehydrate?.()
         useReminderStore.persist?.rehydrate?.()
         return
@@ -61,7 +56,6 @@ export default function App() {
         case 'fish-user': useUserStore.persist?.rehydrate?.(); break
         case 'fish-goals': useGoalStore.persist?.rehydrate?.(); break
         case 'fish-progress': useProgressStore.persist?.rehydrate?.(); break
-        case 'fish-weather': useWeatherStore.persist?.rehydrate?.(); break
         case 'fish-mood': useMoodStore.persist?.rehydrate?.(); break
         case 'fish-reminder': useReminderStore.persist?.rehydrate?.(); break
         // 兼容旧 key：老用户升级后仍能同步
@@ -76,7 +70,6 @@ export default function App() {
     return () => window.removeEventListener('storage', handler)
   }, [])
 
-  // 主窗口启动时启动提醒循环
   useEffect(() => {
     if (label === 'main') {
       startReminderLoop()

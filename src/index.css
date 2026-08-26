@@ -152,7 +152,35 @@ body.widget-body .widget-root {
   /* 悬浮窗 body 下：让卡片无阴影、无外边距，背景与 body 融为一体 */
   body.widget-body .widget-card {
     box-shadow: none;
-    border-radius: var(--radius);
+    border-radius: 18px;
+  }
+
+  /* 悬浮窗子板块：圆角矩形分块 */
+  .widget-section {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 8px 10px;
+    transition: background 0.2s;
+  }
+
+  [data-theme='midnight'] .widget-section,
+  [data-theme='cyber'] .widget-section {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  [data-theme='mint'] .widget-section,
+  [data-theme='sakura'] .widget-section,
+  [data-theme='sunset'] .widget-section {
+    background: rgba(0, 0, 0, 0.025);
+    border-color: rgba(0, 0, 0, 0.05);
+  }
+
+  /* 紧凑子板块 */
+  .widget-section-compact {
+    padding: 6px 8px;
+    border-radius: 12px;
   }
 
   .glass {

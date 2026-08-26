@@ -31,7 +31,6 @@ const DEFAULT_MODULES: WidgetModuleId[] = [
   'countdown',
   'goal',
   'level',
-  'weather',
   'mood',
   'fish',
   'status',
@@ -51,7 +50,6 @@ export const MODULE_LABELS: Record<WidgetModuleId, string> = {
   companion: '搭子',
   fish: '摸鱼计时',
   status: '今日状态',
-  weather: '今日天气',
   mood: '今日心情',
 }
 
@@ -91,6 +89,18 @@ export const useWidgetStore = create<WidgetState>()(
       toggleCompanion: () => set((s) => ({ showCompanion: !s.showCompanion })),
       toggleQuote: () => set((s) => ({ showQuote: !s.showQuote })),
     }),
-    { name: 'fish-widget' }
+    {
+      name: 'fish-widget',
+      version: 2,
+      migrate: (persistedState: any, fromVersion: number) => {
+        // v0.2: 移除已下线的 'weather' 模块
+        if (persistedState && Array.isArray(persistedState.modules)) {
+          persistedState.modules = (persistedState.modules as string[]).filter(
+            (m) => m !== 'weather'
+          ) as WidgetModuleId[]
+        }
+        return persistedState
+      },
+    }
   )
 )
