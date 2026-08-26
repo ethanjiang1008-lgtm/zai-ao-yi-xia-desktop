@@ -135,6 +135,14 @@ body.widget-body {
 
 /* ===== Components ===== */
 @layer components {
+  /* 悬浮窗卡片：在透明窗口上需要足够不透明的背景才可见 */
+  .widget-card {
+    background: var(--card-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
   .glass {
     background: var(--card);
     backdrop-filter: blur(var(--glass-blur));
