@@ -50,23 +50,13 @@ export async function startDragging(): Promise<void> {
 }
 
 export async function setWidgetSize(w: number, h: number): Promise<void> {
-  if (!isTauri) return
-  try {
-    const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window')
-    await getCurrentWindow().setSize(new LogicalSize(w, h))
-  } catch {
-    /* ignore */
-  }
+  // 通过 Rust 命令定向操作 widget 窗口（不是当前窗口）
+  await tauriInvoke('set_widget_size', { w: w, h: h })
 }
 
 export async function setWidgetOnTop(onTop: boolean): Promise<void> {
-  if (!isTauri) return
-  try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    await getCurrentWindow().setAlwaysOnTop(onTop)
-  } catch {
-    /* ignore */
-  }
+  // 通过 Rust 命令定向操作 widget 窗口
+  await tauriInvoke('set_widget_on_top', { onTop })
 }
 
 export async function tauriListen(
