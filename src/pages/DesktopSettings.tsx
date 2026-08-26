@@ -148,6 +148,14 @@ export default function DesktopSettings() {
         </div>
 
         <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm">数字 tick 闪烁</span>
+            <div className="text-[11px] label-faint mt-0.5">每秒工作时主数字短暂高亮（颜色跟随主题）</div>
+          </div>
+          <Toggle on={ws.tickFlash} onChange={ws.toggleTickFlash} />
+        </div>
+
+        <div className="flex items-center justify-between">
           <span className="text-sm">显示搭子</span>
           <Toggle on={ws.showCompanion} onChange={ws.toggleCompanion} />
         </div>

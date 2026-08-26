@@ -8,6 +8,8 @@ interface WidgetState {
   alwaysOnTop: boolean
   showCompanion: boolean
   showQuote: boolean
+  /** v0.2.4: 数字 tick-flash 动画开关（默认开启） */
+  tickFlash: boolean
   /** 悬浮窗字号（仅影响 widget 窗口） */
   fontSize: number
   /** 文案刷新间隔（分钟） */
@@ -23,6 +25,7 @@ interface WidgetState {
   setModules: (mods: WidgetModuleId[]) => void
   toggleCompanion: () => void
   toggleQuote: () => void
+  toggleTickFlash: () => void
 }
 
 const DEFAULT_MODULES: WidgetModuleId[] = [
@@ -85,6 +88,7 @@ export const useWidgetStore = create<WidgetState>()(
       alwaysOnTop: true,
       showCompanion: true,
       showQuote: true,
+      tickFlash: true,
       fontSize: 13,
       quoteInterval: 3,
       modules: DEFAULT_MODULES,
@@ -115,10 +119,11 @@ export const useWidgetStore = create<WidgetState>()(
       setModules: (mods) => set({ modules: mods }),
       toggleCompanion: () => set((s) => ({ showCompanion: !s.showCompanion })),
       toggleQuote: () => set((s) => ({ showQuote: !s.showQuote })),
+      toggleTickFlash: () => set((s) => ({ tickFlash: !s.tickFlash })),
     }),
     {
       name: 'fish-widget',
-      version: 3,
+      version: 4,
       migrate: (persistedState: any, fromVersion: number) => {
         // v0.2.2 → v0.2.3: 移除已下线的 'weather' 模块（兼容老存档）
         if (persistedState && Array.isArray(persistedState.modules)) {

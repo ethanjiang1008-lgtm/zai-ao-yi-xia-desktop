@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import MainApp from './pages/MainApp'
 import WidgetApp from './widget/WidgetApp'
-import { initWindowLabel } from './services/tauri'
+import { initWindowLabel, tauriInvoke, tauriListen } from './services/tauri'
 import { useThemeStore } from './stores/themeStore'
 import { useWidgetStore } from './stores/widgetStore'
 import { useUserStore } from './stores/userStore'
@@ -20,6 +20,30 @@ export default function App() {
   useEffect(() => {
     void initWindowLabel().then((l) => setLabel(l))
   }, [])
+
+  // 主窗口修改主题后，广播给 widget
+  useEffect(() => {
+    if (label === 'main') {
+      void tauriInvoke('broadcast_theme', { theme })
+    }
+  }, [theme, label])
+
+  // widget 窗口监听 'theme-changed' 事件
+  useEffect(() => {
+    if (label !== 'widget') return
+    let un: (() => void) | undefined
+    void tauriListen('theme-changed', (payload) => {
+      // payload 是字符串主题名
+      if (payload && typeof payload === 'string') {
+        useThemeStore.getState().setTheme(payload as any)
+      }
+    }).then((u) => {
+      un = u
+    })
+    return () => {
+      if (un) un()
+    }
+  }, [label])
 
   useEffect(() => {
     const root = document.documentElement

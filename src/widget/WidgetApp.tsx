@@ -53,11 +53,11 @@ function statusBadge(snap: TodaySnapshot, profile: { segments: { start: string; 
     }
     return { dot: 'warn', text: '午休中', sub: '' }
   }
-  // working
+  // working — 不再显示每秒费率（用户偏好）
   return {
     dot: '',
     text: '赚钱中',
-    sub: `${perSecondLabel(snap.perSecondFen)}`,
+    sub: '',
   }
 }
 
@@ -258,10 +258,10 @@ export default function WidgetApp({ previewMode = false }: Props) {
             snap={snap}
             earnedLive={earnedLive}
             earnedLiveSplit={earnedLiveSplit}
-            perSecLabel={perSecondLabel(snap.perSecondFen)}
             moodEmoji={moodMeta?.emoji ?? null}
             flash={flash}
             isPaused={isPaused}
+            tickFlash={ws.tickFlash}
           />
         )}
         {ws.size === 'M' && (
@@ -271,12 +271,12 @@ export default function WidgetApp({ previewMode = false }: Props) {
             has={has(ws.modules)}
             earnedLive={earnedLive}
             earnedLiveSplit={earnedLiveSplit}
-            perSecLabel={perSecondLabel(snap.perSecondFen)}
             moodMeta={moodMeta}
             quote={quote}
             flash={flash}
             isPaused={isPaused}
             isWorking={isWorking}
+            tickFlash={ws.tickFlash}
           />
         )}
         {ws.size === 'L' && (
@@ -292,13 +292,13 @@ export default function WidgetApp({ previewMode = false }: Props) {
             status={status}
             earnedLive={earnedLive}
             earnedLiveSplit={earnedLiveSplit}
-            perSecLabel={perSecondLabel(snap.perSecondFen)}
             fishProps={{ isFishing, fishSeconds, fishCostFen }}
             onFish={doToggleFish}
             moodMeta={moodMeta}
             flash={flash}
             isPaused={isPaused}
             isWorking={isWorking}
+            tickFlash={ws.tickFlash}
           />
         )}
 
@@ -327,25 +327,23 @@ function has(modules: WidgetModuleId[]) {
 /* ===== S 极简：胶囊形（高瘦） ===== */
 function SizeS({
   snap,
-  earnedLive,
   earnedLiveSplit,
-  perSecLabel,
   moodEmoji,
   flash,
   isPaused,
+  tickFlash,
 }: {
   snap: TodaySnapshot
   earnedLive: string
   earnedLiveSplit: { whole: string; fraction: string }
-  perSecLabel: string
   moodEmoji: string | null
   flash: boolean
   isPaused: boolean
+  tickFlash: boolean
 }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-3 pb-3 overflow-hidden relative z-10">
-      <div className="text-[9px] tank-label mb-0.5">{perSecLabel}</div>
-      <div className={`text-2xl font-bold tank-money leading-tight ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
+      <div className={`text-2xl font-bold tank-money leading-tight ${flash && tickFlash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
         ¥{earnedLiveSplit.whole}
       </div>
       <div className="text-[9px] tank-label mt-1 flex items-center gap-1.5 justify-center">
@@ -363,24 +361,24 @@ function SizeM({
   has,
   earnedLive,
   earnedLiveSplit,
-  perSecLabel,
   moodMeta,
   quote,
   flash,
   isPaused,
   isWorking,
+  tickFlash,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
   has: (m: WidgetModuleId) => boolean
   earnedLive: string
   earnedLiveSplit: { whole: string; fraction: string }
-  perSecLabel: string
   moodMeta: { label: string; emoji: string } | null
   quote: string
   flash: boolean
   isPaused: boolean
   isWorking: boolean
+  tickFlash: boolean
 }) {
   return (
     <div className="flex-1 flex flex-col gap-1.5 px-2.5 pb-4 overflow-hidden relative z-10">
@@ -390,13 +388,12 @@ function SizeM({
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="text-[9px] tank-label">今日已赚 · {isWorking ? '实时' : '暂停'}</div>
-              <div className={`text-[22px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
+              <div className={`text-[22px] font-bold tank-money leading-none mt-0.5 ${flash && tickFlash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
                 ¥{earnedLiveSplit.whole}
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="text-[8px] tank-label">{perSecLabel}</div>
-              {moodMeta && <div className="text-base mt-0.5">{moodMeta.emoji}</div>}
+              {moodMeta && <div className="text-base">{moodMeta.emoji}</div>}
             </div>
           </div>
         </div>
@@ -462,13 +459,13 @@ function SizeL({
   status,
   earnedLive,
   earnedLiveSplit,
-  perSecLabel,
   fishProps,
   onFish,
   moodMeta,
   flash,
   isPaused,
   isWorking,
+  tickFlash,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
@@ -481,13 +478,13 @@ function SizeL({
   status: ReturnType<typeof getTodayStatus>
   earnedLive: string
   earnedLiveSplit: { whole: string; fraction: string }
-  perSecLabel: string
   fishProps: { isFishing: boolean; fishSeconds: number; fishCostFen: number }
   onFish: () => void
   moodMeta: { label: string; emoji: string } | null
   flash: boolean
   isPaused: boolean
   isWorking: boolean
+  tickFlash: boolean
 }) {
   type RenderResult = { node: React.ReactNode; compact?: boolean } | null
   const renderers: Record<WidgetModuleId, () => RenderResult> = {
@@ -508,10 +505,9 @@ function SizeL({
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="text-[9px] tank-label">今日已赚 · {isWorking ? '实时微动' : '暂停'}</div>
-              <div className={`text-[28px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
+              <div className={`text-[28px] font-bold tank-money leading-none mt-0.5 ${flash && tickFlash ? 'tick-flash' : ''} ${isPaused ? 'is-paused' : ''}`}>
                 ¥{earnedLiveSplit.whole}
               </div>
-              <div className="text-[9px] tank-label mt-1">{perSecLabel}</div>
             </div>
             {moodMeta && <div className="text-2xl shrink-0">{moodMeta.emoji}</div>}
           </div>

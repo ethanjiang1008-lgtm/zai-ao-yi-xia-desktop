@@ -84,6 +84,14 @@ fn show_notification(app: tauri::AppHandle, title: String, body: String) -> Resu
     Ok(())
 }
 
+/// 主窗口修改主题后，广播给所有窗口（widget 监听后更新自己的 store）
+#[tauri::command]
+fn broadcast_theme(app: tauri::AppHandle, theme: String) -> Result<(), String> {
+    let _ = app.emit_to("widget", "theme-changed", theme.clone());
+    let _ = app.emit_to("main", "theme-changed", theme);
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -204,7 +212,8 @@ fn main() {
             toggle_widget,
             set_widget_on_top,
             set_widget_size,
-            show_notification
+            show_notification,
+            broadcast_theme
         ])
         .run(tauri::generate_context!())
         .expect("error while running Fish");
