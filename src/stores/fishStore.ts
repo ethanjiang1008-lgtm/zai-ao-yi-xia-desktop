@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import type { TodaySnapshot } from '../services/TimeService'
 
 export interface FishState {
   isFishing: boolean
@@ -7,10 +6,8 @@ export interface FishState {
   /** 本次摸鱼秒数（仅当 isFishing 时由 tick 更新） */
   fishSeconds: number
   fishCostFen: number
-  _snap: TodaySnapshot | null
-  setSnap: (snap: TodaySnapshot | null) => void
-  toggle: () => void
-  tick: () => void
+  toggle: (perSecondFen: number) => void
+  tick: (perSecondFen: number) => void
   endAndReport: () => { seconds: number; costFen: number } | null
 }
 
@@ -19,28 +16,21 @@ export const useFishStore = create<FishState>((set, get) => ({
   startedAt: null,
   fishSeconds: 0,
   fishCostFen: 0,
-  _snap: null,
 
-  setSnap: (snap) => {
-    set({ _snap: snap })
-    if (get().isFishing) get().tick()
-  },
-
-  toggle: () => {
+  toggle: (perSecondFen) => {
     const s = get()
     if (s.isFishing) {
-      // 结束
-      const report = s.endAndReport()
-      return report ? undefined : undefined
+      s.endAndReport()
+      return
     }
     set({ isFishing: true, startedAt: Date.now(), fishSeconds: 0, fishCostFen: 0 })
   },
 
-  tick: () => {
+  tick: (perSecondFen) => {
     const s = get()
     if (!s.isFishing || !s.startedAt) return
     const seconds = Math.floor((Date.now() - s.startedAt) / 1000)
-    const cost = s._snap ? Math.round(seconds * s._snap.perSecondFen) : 0
+    const cost = Math.round(seconds * perSecondFen)
     set({ fishSeconds: seconds, fishCostFen: cost })
   },
 
