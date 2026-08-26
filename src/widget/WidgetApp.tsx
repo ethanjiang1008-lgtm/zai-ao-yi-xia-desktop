@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUserStore } from '../stores/userStore'
 import { useWidgetStore } from '../stores/widgetStore'
 import { useFishStore } from '../stores/fishStore'
-import { getTodaySnapshot, type TodaySnapshot } from '../services/TimeService'
+import { getTodaySnapshot, type TodaySnapshot, type WorkState } from '../services/TimeService'
 import { collectStats } from '../services/engine'
 import { levelXpInfo } from '../constants/levels'
-import { fenToYuanLabel, perSecondLabel } from '../utils/money'
-import { fmtHMS, fmtMinHM, dateStr } from '../utils/format'
+import { fenToYuanLabel, fenToYuanLiveLabel, perSecondLabel } from '../utils/money'
+import { fmtHMS, fmtMinHM, dateStr, hhmmToMin } from '../utils/format'
 import { getTodayStatus } from '../services/todayStatus'
 import { pickQuote, sceneForState } from '../constants/quotes'
 import { companionMessage } from '../services/companion'
@@ -22,12 +22,68 @@ interface Props {
   previewMode?: boolean
 }
 
+/** 状态徽章配置 */
+function statusBadge(snap: TodaySnapshot, profile: { segments: { start: string; end: string }[] }) {
+  const now = new Date()
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  if (snap.state === 'offday') {
+    return { dot: 'off', text: '休息日', sub: '' }
+  }
+  if (snap.state === 'after') {
+    return { dot: 'off', text: '已下班', sub: '' }
+  }
+  if (snap.state === 'before') {
+    const firstStart = Math.min(...profile.segments.map((s) => hhmmToMin(s.start)))
+    const left = firstStart - nowMin
+    return { dot: 'warn', text: '准备中', sub: left > 0 ? `还差 ${left}min` : '' }
+  }
+  if (snap.state === 'break') {
+    const nextStart = profile.segments
+      .map((s) => hhmmToMin(s.start))
+      .find((m) => m > nowMin)
+    if (nextStart != null) {
+      const left = nextStart - nowMin
+      const hh = Math.floor(left / 60)
+      const mm = left % 60
+      return {
+        dot: 'warn',
+        text: '午休中',
+        sub: hh > 0 ? `${hh}h${mm}min 后继续` : `${mm}min 后继续`,
+      }
+    }
+    return { dot: 'warn', text: '午休中', sub: '' }
+  }
+  // working
+  return {
+    dot: '',
+    text: '赚钱中',
+    sub: `${perSecondLabel(snap.perSecondFen)}`,
+  }
+}
+
+/** 把 0.0158 这样的浮点 fen 拆成 ¥0.00 + .0158（高亮小数位） */
+function splitLiveYuan(fen: number): { whole: string; fraction: string } {
+  const yuan = fen / 100
+  const fixed = yuan.toFixed(4) // 保留 4 位小数
+  const dotIdx = fixed.indexOf('.')
+  if (dotIdx < 0) return { whole: fixed, fraction: '' }
+  // 把「分」（2 位）放整数位，剩下的 2 位放小数位高亮
+  // 例如 0.0158 → "0.01" + "58"
+  // 例如 12.3456 → "12.34" + "56"
+  const head = fixed.slice(0, dotIdx + 3) // 含分
+  const tail = fixed.slice(dotIdx + 3) // 厘
+  return { whole: head, fraction: tail }
+}
+
 export default function WidgetApp({ previewMode = false }: Props) {
   const profile = useUserStore((s) => s.profile)
   const onboarded = useUserStore((s) => s.onboarded)
   const ws = useWidgetStore()
   const [now, setNow] = useState(() => new Date())
   const [quoteTick, setQuoteTick] = useState(0)
+  const [prevWorked, setPrevWorked] = useState(0)
+  const [flash, setFlash] = useState(false)
+  const flashTimer = useRef<number | null>(null)
 
   const isFishing = useFishStore((s) => s.isFishing)
   const fishSeconds = useFishStore((s) => s.fishSeconds)
@@ -55,12 +111,26 @@ export default function WidgetApp({ previewMode = false }: Props) {
     void tauriListen('tray-action', (payload) => {
       if (payload === 'fish') doToggleFish()
     })
-  }, [previewMode])
+  }, [previewMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const snap: TodaySnapshot | null = useMemo(
     () => (profile ? getTodaySnapshot(now, profile) : null),
     [now, profile]
   )
+
+  // 鱼缸心跳：每工作一秒就触发一次闪光，强化「数字在动」的视觉反馈
+  useEffect(() => {
+    if (!snap) return
+    if (snap.workedSeconds !== prevWorked) {
+      const increased = snap.workedSeconds > prevWorked
+      setPrevWorked(snap.workedSeconds)
+      if (increased && snap.state === 'working') {
+        setFlash(true)
+        if (flashTimer.current) window.clearTimeout(flashTimer.current)
+        flashTimer.current = window.setTimeout(() => setFlash(false), 500)
+      }
+    }
+  }, [snap, prevWorked])
 
   useEffect(() => {
     if (isFishing && snap) {
@@ -96,7 +166,7 @@ export default function WidgetApp({ previewMode = false }: Props) {
   if (!onboarded || !profile || !snap) {
     return (
       <div className="w-full h-full flex items-center justify-center" style={{ opacity: ws.opacity }}>
-        <div className="widget-card p-3 text-sm label-dim">请先完成配置</div>
+        <div className="widget-card widget-fish p-4 text-sm tank-label">请先完成配置</div>
       </div>
     )
   }
@@ -106,12 +176,13 @@ export default function WidgetApp({ previewMode = false }: Props) {
   const currentGoal = useGoalStore.getState().goals.find((g) => g.isCurrent && g.status === 'active') || null
   const goalInfo = currentGoal ? goalProgress(currentGoal, stats.totalEarnedFen) : null
   const status = getTodayStatus(now)
-  const scene = sceneForState(snap.state, now.getDay(), now.getHours(), snap.nearOff)
+  const scene = sceneForState(snap.state as WorkState, now.getDay(), now.getHours(), snap.nearOff)
   const quote = ws.showQuote ? pickQuote(scene, dateStr(now) + scene + '|' + quoteTick) : ''
   const companion = ws.showCompanion ? companionMessage(now, snap, fenToYuanLabel(snap.earnedFen)) : ''
   const moodMeta = moodToday ? MOOD_META[moodToday] : null
-  const earnedLabel = fenToYuanLabel(snap.earnedFen)
-  const perSecLabel = perSecondLabel(snap.perSecondFen)
+  const earnedLive = fenToYuanLiveLabel(snap.earnedFen, 4) // 实时微动：4 位小数
+  const earnedLiveSplit = splitLiveYuan(snap.earnedFen)
+  const badge = statusBadge(snap, profile)
 
   const openMain = () => void tauriInvoke('show_main')
   const hideWidget = () => void tauriInvoke('toggle_widget')
@@ -123,11 +194,24 @@ export default function WidgetApp({ previewMode = false }: Props) {
       onMouseDown={handleDrag}
     >
       <div
-        className="widget-card w-full h-full flex flex-col relative overflow-hidden"
-        style={{ borderRadius: 18, background: 'var(--card-solid)' }}
+        className="widget-card widget-fish w-full h-full flex flex-col relative overflow-hidden"
       >
+        {/* 背景气泡（鱼缸氛围） */}
+        <div className="widget-bubbles" />
+
+        {/* 鱼尾装饰：右侧 SVG（位于鱼尾尖位置） */}
+        <svg className="widget-fishtail" viewBox="0 0 22 80" fill="none" preserveAspectRatio="none">
+          <path
+            d="M 0 0 Q 18 30 22 40 Q 18 50 0 80 L 8 40 Z"
+            fill="rgba(120, 180, 255, 0.18)"
+            stroke="rgba(120, 180, 255, 0.35)"
+            strokeWidth="0.5"
+          />
+        </svg>
+
+        {/* hover 控制栏 */}
         {!previewMode && (
-          <div className="absolute top-1 right-1 z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" data-nodrag>
+          <div className="absolute top-1.5 right-1.5 z-20 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" data-nodrag>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('S')}>S</button>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('M')}>M</button>
             <button className="btn btn-ghost text-[9px] px-1 py-0.5" onClick={() => ws.setSize('L')}>L</button>
@@ -136,12 +220,27 @@ export default function WidgetApp({ previewMode = false }: Props) {
           </div>
         )}
 
+        {/* 顶部品牌 + 状态徽章 */}
+        <div className="flex items-center justify-between px-3 pt-2.5 pb-1 shrink-0 relative z-10">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">🐟</span>
+            <span className="text-[11px] font-semibold tank-label">Fish</span>
+          </div>
+          <div className="widget-status" data-nodrag>
+            <span className={`dot ${badge.dot}`} />
+            <span>{badge.text}</span>
+            {badge.sub && <span className="opacity-70">· {badge.sub}</span>}
+          </div>
+        </div>
+
         {ws.size === 'S' && (
           <SizeS
             snap={snap}
-            earnedLabel={earnedLabel}
-            perSecLabel={perSecLabel}
+            earnedLive={earnedLive}
+            earnedLiveSplit={earnedLiveSplit}
+            perSecLabel={perSecondLabel(snap.perSecondFen)}
             moodEmoji={moodMeta?.emoji ?? null}
+            flash={flash}
           />
         )}
         {ws.size === 'M' && (
@@ -149,10 +248,12 @@ export default function WidgetApp({ previewMode = false }: Props) {
             snap={snap}
             modules={ws.modules}
             has={has(ws.modules)}
-            earnedLabel={earnedLabel}
-            perSecLabel={perSecLabel}
+            earnedLive={earnedLive}
+            earnedLiveSplit={earnedLiveSplit}
+            perSecLabel={perSecondLabel(snap.perSecondFen)}
             moodMeta={moodMeta}
             quote={quote}
+            flash={flash}
           />
         )}
         {ws.size === 'L' && (
@@ -166,13 +267,29 @@ export default function WidgetApp({ previewMode = false }: Props) {
             quote={quote}
             companion={companion}
             status={status}
-            earnedLabel={earnedLabel}
-            perSecLabel={perSecLabel}
+            earnedLive={earnedLive}
+            earnedLiveSplit={earnedLiveSplit}
+            perSecLabel={perSecondLabel(snap.perSecondFen)}
             fishProps={{ isFishing, fishSeconds, fishCostFen }}
             onFish={doToggleFish}
             moodMeta={moodMeta}
+            flash={flash}
           />
         )}
+
+        {/* 底部水波装饰 */}
+        <div className="widget-water">
+          <svg viewBox="0 0 280 14" preserveAspectRatio="none">
+            <path
+              d="M0,7 C40,2 80,12 140,7 C200,2 240,12 280,7 L280,14 L0,14 Z"
+              fill="rgba(255,255,255,0.06)"
+            />
+            <path
+              d="M0,9 C50,5 100,13 160,9 C220,5 250,11 280,9 L280,14 L0,14 Z"
+              fill="rgba(255,255,255,0.04)"
+            />
+          </svg>
+        </div>
       </div>
     </div>
   )
@@ -182,28 +299,32 @@ function has(modules: WidgetModuleId[]) {
   return (m: WidgetModuleId) => modules.includes(m)
 }
 
-/* ===== S 极简 ===== */
+/* ===== S 极简：胶囊形（高瘦） ===== */
 function SizeS({
   snap,
-  earnedLabel,
+  earnedLive,
+  earnedLiveSplit,
   perSecLabel,
   moodEmoji,
+  flash,
 }: {
   snap: TodaySnapshot
-  earnedLabel: string
+  earnedLive: string
+  earnedLiveSplit: { whole: string; fraction: string }
   perSecLabel: string
   moodEmoji: string | null
+  flash: boolean
 }) {
   return (
-    <div className="flex-1 flex flex-col gap-1.5 p-2 overflow-hidden">
-      <div className="widget-section flex-1 flex flex-col items-center justify-center text-center">
-        <div className="text-[10px] label-faint mb-0.5">今日已赚 · {perSecLabel}</div>
-        <div className="text-2xl font-bold accent-text leading-tight">{earnedLabel}</div>
-        {moodEmoji && <div className="text-xs mt-1 label-dim">{moodEmoji} 今日心情</div>}
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-3 pb-3 overflow-hidden relative z-10">
+      <div className="text-[9px] tank-label mb-0.5">{perSecLabel}</div>
+      <div className={`text-2xl font-bold tank-money leading-tight ${flash ? 'tick-flash' : ''}`}>
+        ¥{earnedLiveSplit.whole}
+        {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
       </div>
-      <div className="widget-section widget-section-compact flex items-center justify-between text-[10px]">
-        <span className="label-faint">进度</span>
-        <span className="font-mono font-semibold">{Math.round(snap.progress * 100)}%</span>
+      <div className="text-[9px] tank-label mt-1 flex items-center gap-1.5 justify-center">
+        {moodEmoji && <span>{moodEmoji}</span>}
+        <span>进度 {Math.round(snap.progress * 100)}%</span>
       </div>
     </div>
   )
@@ -214,75 +335,84 @@ function SizeM({
   snap,
   modules,
   has,
-  earnedLabel,
+  earnedLive,
+  earnedLiveSplit,
   perSecLabel,
   moodMeta,
   quote,
+  flash,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
   has: (m: WidgetModuleId) => boolean
-  earnedLabel: string
+  earnedLive: string
+  earnedLiveSplit: { whole: string; fraction: string }
   perSecLabel: string
   moodMeta: { label: string; emoji: string } | null
   quote: string
+  flash: boolean
 }) {
   return (
-    <div className="flex-1 flex flex-col gap-1.5 p-2 overflow-hidden">
-      {/* 收入主块：最大、最显眼 */}
+    <div className="flex-1 flex flex-col gap-1.5 px-2.5 pb-4 overflow-hidden relative z-10">
+      {/* 收入主块：圆形/大圆角的水滴形焦点 */}
       {has('salary') && (
-        <div className="widget-section flex items-center justify-between">
-          <div>
-            <div className="text-[10px] label-faint">今日已赚</div>
-            <div className="text-xl font-bold accent-text leading-none mt-0.5">{earnedLabel}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] label-faint">{perSecLabel}</div>
-            {moodMeta && (
-              <div className="text-[10px] mt-0.5">{moodMeta.emoji}</div>
-            )}
+        <div className="widget-money-block">
+          <div className="flex items-end justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[9px] tank-label">今日已赚 · 实时</div>
+              <div className={`text-[22px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''}`}>
+                ¥{earnedLiveSplit.whole}
+                {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[8px] tank-label">{perSecLabel}</div>
+              {moodMeta && <div className="text-base mt-0.5">{moodMeta.emoji}</div>}
+            </div>
           </div>
         </div>
       )}
 
-      {/* 进度 + 倒计时 + 心情：紧凑行 */}
-      {(has('progress') || has('countdown') || has('mood')) && (
+      {/* 进度 + 倒计时：胶囊形并排 */}
+      {(has('progress') || has('countdown')) && (
         <div className="grid grid-cols-2 gap-1.5">
           {has('progress') && (
             <div className="widget-section widget-section-compact">
-              <div className="flex justify-between text-[10px] mb-1">
-                <span className="label-faint">今日进度</span>
-                <span className="label-dim font-mono">{Math.round(snap.progress * 100)}%</span>
+              <div className="flex justify-between items-center text-[9px] mb-0.5">
+                <span className="tank-label">进度</span>
+                <span className="tank-label font-mono">{Math.round(snap.progress * 100)}%</span>
               </div>
               <ProgressBar value={snap.progress} height={3} />
             </div>
           )}
           {has('countdown') && (
             <div className="widget-section widget-section-compact">
-              <div className="text-[10px] label-faint">下班</div>
-              <div className="text-[12px] font-mono font-bold leading-tight">
-                {snap.state === 'after' ? '🎉 已下班' : snap.state === 'offday' ? '休息' : fmtHMS(snap.secondsToOff)}
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[9px] tank-label">下班</span>
+                <span className="text-[11px] font-mono font-bold tank-money">
+                  {snap.state === 'after' ? '🎉 已下班' : snap.state === 'offday' ? '休息' : fmtHMS(snap.secondsToOff)}
+                </span>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* 心情单行（如启用） */}
+      {/* 心情：胶囊 */}
       {has('mood') && (
         <div className="widget-section widget-section-compact flex items-center justify-between text-[10px]">
-          <span className="label-faint">今日心情</span>
+          <span className="tank-label">心情</span>
           {moodMeta ? (
             <span>{moodMeta.emoji} {moodMeta.label}</span>
           ) : (
-            <span className="label-faint">未选</span>
+            <span className="tank-label">未选</span>
           )}
         </div>
       )}
 
-      {/* 文案 */}
+      {/* 文案：胶囊 */}
       {has('quote') && quote && (
-        <div className="widget-section widget-section-compact text-[10px] label-faint truncate">
+        <div className="widget-section widget-section-compact text-[10px] tank-label truncate">
           {quote}
         </div>
       )}
@@ -301,11 +431,13 @@ function SizeL({
   quote,
   companion,
   status,
-  earnedLabel,
+  earnedLive,
+  earnedLiveSplit,
   perSecLabel,
   fishProps,
   onFish,
   moodMeta,
+  flash,
 }: {
   snap: TodaySnapshot
   modules: WidgetModuleId[]
@@ -316,13 +448,14 @@ function SizeL({
   quote: string
   companion: string
   status: ReturnType<typeof getTodayStatus>
-  earnedLabel: string
+  earnedLive: string
+  earnedLiveSplit: { whole: string; fraction: string }
   perSecLabel: string
   fishProps: { isFishing: boolean; fishSeconds: number; fishCostFen: number }
   onFish: () => void
   moodMeta: { label: string; emoji: string } | null
+  flash: boolean
 }) {
-  // 每个模块的渲染器，返回 (node, isCompact)
   type RenderResult = { node: React.ReactNode; compact?: boolean } | null
   const renderers: Record<WidgetModuleId, () => RenderResult> = {
     level: () =>
@@ -331,28 +464,34 @@ function SizeL({
             node: (
               <div className="flex items-center gap-2">
                 <span className="accent-grad text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Lv.{levelInfo.level}</span>
-                <span className="text-[12px] font-semibold">{levelInfo.title}</span>
+                <span className="text-[11px] font-semibold tank-money">{levelInfo.title}</span>
               </div>
             ),
           }
         : null,
     salary: () => ({
       node: (
-        <div className="flex items-baseline justify-between">
-          <div>
-            <div className="text-[10px] label-faint">今日已赚</div>
-            <div className="text-2xl font-bold accent-text leading-none mt-0.5">{earnedLabel}</div>
+        <div className="widget-money-block">
+          <div className="flex items-end justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[9px] tank-label">今日已赚 · 实时微动</div>
+              <div className={`text-[28px] font-bold tank-money leading-none mt-0.5 ${flash ? 'tick-flash' : ''}`}>
+                ¥{earnedLiveSplit.whole}
+                {earnedLiveSplit.fraction && <span className="live-fraction">{earnedLiveSplit.fraction}</span>}
+              </div>
+              <div className="text-[9px] tank-label mt-1">{perSecLabel}</div>
+            </div>
+            {moodMeta && <div className="text-2xl shrink-0">{moodMeta.emoji}</div>}
           </div>
-          <div className="text-right text-[10px] label-faint">{perSecLabel}</div>
         </div>
       ),
     }),
     progress: () => ({
       node: (
-        <div>
-          <div className="flex justify-between text-[10px] mb-1">
-            <span className="label-faint">今日进度</span>
-            <span className="label-dim font-mono">{Math.round(snap.progress * 100)}%</span>
+        <div className="widget-section widget-section-compact">
+          <div className="flex justify-between text-[9px] mb-1">
+            <span className="tank-label">今日进度</span>
+            <span className="tank-label font-mono">{Math.round(snap.progress * 100)}%</span>
           </div>
           <ProgressBar value={snap.progress} height={4} />
         </div>
@@ -360,9 +499,9 @@ function SizeL({
     }),
     countdown: () => ({
       node: (
-        <div className="text-center">
-          <div className="text-[10px] label-faint">下班倒计时</div>
-          <div className="font-mono text-base font-bold mt-0.5">
+        <div className="widget-section widget-section-compact text-center">
+          <div className="text-[9px] tank-label">下班倒计时</div>
+          <div className="font-mono text-base font-bold tank-money mt-0.5">
             {snap.state === 'after' ? '🎉 已下班' : snap.state === 'offday' ? '休息日' : fmtHMS(snap.secondsToOff)}
           </div>
         </div>
@@ -372,11 +511,11 @@ function SizeL({
       currentGoal && goalInfo
         ? {
             node: (
-              <div>
+              <div className="widget-section widget-section-compact">
                 <div className="flex items-center gap-1.5 text-[10px] mb-1">
                   <span className="text-sm">{currentGoal.emoji}</span>
-                  <span className="label-dim truncate flex-1">{currentGoal.name}</span>
-                  <span className="label-dim font-mono">{Math.round(goalInfo.progress * 100)}%</span>
+                  <span className="tank-label truncate flex-1">{currentGoal.name}</span>
+                  <span className="tank-label font-mono">{Math.round(goalInfo.progress * 100)}%</span>
                 </div>
                 <ProgressBar value={goalInfo.progress} height={4} />
               </div>
@@ -385,10 +524,10 @@ function SizeL({
         : null,
     xp: () => ({
       node: (
-        <div>
-          <div className="flex justify-between text-[10px] mb-1">
-            <span className="label-faint">XP</span>
-            <span className="label-dim font-mono">{levelInfo.currentXp}/{levelInfo.needXp}</span>
+        <div className="widget-section widget-section-compact">
+          <div className="flex justify-between text-[9px] mb-1">
+            <span className="tank-label">XP</span>
+            <span className="tank-label font-mono">{levelInfo.currentXp}/{levelInfo.needXp}</span>
           </div>
           <ProgressBar value={levelInfo.progress} height={3} />
         </div>
@@ -396,23 +535,23 @@ function SizeL({
     }),
     status: () => ({
       node: (
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="widget-section widget-section-compact flex items-center gap-2 text-[10px]">
           <span className="text-sm">{status.emoji}</span>
-          <span className="label-dim">{status.statusLabel}</span>
-          <span className="ml-auto label-faint">动力 {status.motivation}%</span>
+          <span className="tank-label">{status.statusLabel}</span>
+          <span className="ml-auto tank-label">动力 {status.motivation}%</span>
         </div>
       ),
     }),
     fish: () => ({
       node: (
-        <div className="flex items-center justify-between" data-nodrag>
+        <div className="widget-section widget-section-compact flex items-center justify-between" data-nodrag>
           <div className="text-[11px]">
             {fishProps.isFishing ? (
-              <span className="font-mono font-semibold">
+              <span className="font-mono font-semibold tank-money">
                 ⏱ {fmtHMS(fishProps.fishSeconds)} · {fenToYuanLabel(fishProps.fishCostFen)}
               </span>
             ) : (
-              <span className="label-faint">🐟 摸一下鱼</span>
+              <span className="tank-label">🐟 摸一下鱼</span>
             )}
           </div>
           <button className="btn text-[10px] px-2 py-0.5" onClick={onFish}>
@@ -423,31 +562,31 @@ function SizeL({
     }),
     quote: () =>
       quote
-        ? { node: <div className="text-[10px] label-faint text-center leading-snug">{quote}</div>, compact: true }
+        ? { node: <div className="widget-section widget-section-compact text-[10px] tank-label text-center leading-snug">{quote}</div> }
         : null,
     companion: () =>
       companion
         ? {
             node: (
-              <div className="flex items-start gap-2 text-[10px]">
+              <div className="widget-section widget-section-compact flex items-start gap-2 text-[10px]">
                 <span className="text-sm shrink-0">🐱</span>
-                <span className="label-dim leading-snug">{companion}</span>
+                <span className="tank-label leading-snug">{companion}</span>
               </div>
             ),
           }
         : null,
     mood: () => ({
       node: (
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="widget-section widget-section-compact flex items-center gap-2 text-[10px]">
           {moodMeta ? (
             <>
               <span className="text-sm">{moodMeta.emoji}</span>
-              <span className="label-dim">今日心情 · {moodMeta.label}</span>
+              <span className="tank-label">今日心情 · {moodMeta.label}</span>
             </>
           ) : (
             <>
               <span className="text-sm opacity-50">😐</span>
-              <span className="label-faint">未选心情</span>
+              <span className="tank-label">未选心情</span>
             </>
           )}
         </div>
@@ -456,13 +595,13 @@ function SizeL({
   }
 
   return (
-    <div className="flex-1 flex flex-col gap-1.5 p-2 overflow-y-auto">
+    <div className="flex-1 flex flex-col gap-1.5 px-2.5 pb-4 overflow-y-auto relative z-10">
       {modules.map((m) => {
         if (!has(m)) return null
         const r = renderers[m]()
         if (!r) return null
         return (
-          <div key={m} className={r.compact ? 'widget-section widget-section-compact' : 'widget-section'}>
+          <div key={m}>
             {r.node}
           </div>
         )

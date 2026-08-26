@@ -119,14 +119,8 @@ body {
 }
 
 body.widget-body {
-  background: var(--card-solid) !important;
+  background: transparent !important;
   overflow: hidden;
-}
-
-/* 悬浮窗：让根容器和 widget-root 背景对齐，去除底部/轮廓灰色边缘 */
-body.widget-body #root,
-body.widget-body .widget-root {
-  background: var(--card-solid);
 }
 
 #root {
@@ -152,35 +146,267 @@ body.widget-body .widget-root {
   /* 悬浮窗 body 下：让卡片无阴影、无外边距，背景与 body 融为一体 */
   body.widget-body .widget-card {
     box-shadow: none;
-    border-radius: 18px;
   }
 
-  /* 悬浮窗子板块：圆角矩形分块 */
+  /* ===== 鱼形卡片（v0.2.2）：非矩形的有机轮廓 =====
+   * 用 clip-path 切一个左圆右尖的「鱼」轮廓
+   * 头部大圆 + 身体 + 尾巴尖；尺寸 280×200
+   * 改用：squircle 圆角 + 右侧鱼尾三角切角
+   *   左/上/下：38px 圆角
+   *   右上：0（切出斜面）
+   *   右下：鱼尾尖（clip-path 实现）
+   */
+  .widget-fish {
+    background:
+      radial-gradient(ellipse at top, rgba(255, 255, 255, 0.1), transparent 60%),
+      linear-gradient(180deg, #1a3a5c 0%, #122544 50%, #0a1730 100%);
+    border: 1px solid rgba(120, 180, 255, 0.18);
+    border-radius: 38px;
+    /* 鱼形剪裁：左圆 + 鱼尾（path() 不在所有浏览器都支持，用 border-radius 兜底） */
+  }
+
+  @supports (clip-path: path('M0 0')) {
+    .widget-fish {
+      clip-path: path('M 38 0 L 250 0 Q 280 0 280 30 L 280 130 Q 290 145 296 158 Q 290 165 280 170 L 280 170 Q 280 200 250 200 L 38 200 Q 0 200 0 162 L 0 38 Q 0 0 38 0 Z');
+    }
+  }
+
+  /* 鱼尾装饰 SVG（覆盖在卡片右下方，剪裁外侧） */
+  .widget-fishtail {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 80px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* 主题变体：浅色主题鱼缸 */
+  [data-theme='mint'] .widget-fish,
+  [data-theme='sakura'] .widget-fish,
+  [data-theme='sunset'] .widget-fish {
+    background:
+      radial-gradient(ellipse at top, rgba(255, 255, 255, 0.55), transparent 60%),
+      linear-gradient(180deg, rgba(180, 220, 255, 0.4), rgba(150, 200, 240, 0.32), rgba(120, 180, 230, 0.25));
+    border-color: rgba(100, 160, 220, 0.3);
+  }
+
+  /* 鱼缸装饰：背景气泡（始终浮动） */
+  .widget-bubbles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: 38px;
+    z-index: 0;
+  }
+
+  .widget-bubbles::before,
+  .widget-bubbles::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04) 70%, transparent);
+    animation: bubble-rise 6s linear infinite;
+  }
+
+  .widget-bubbles::before {
+    width: 8px;
+    height: 8px;
+    left: 18%;
+    bottom: -10px;
+    animation-delay: 0s;
+  }
+
+  .widget-bubbles::after {
+    width: 5px;
+    height: 5px;
+    left: 70%;
+    bottom: -10px;
+    animation-delay: 2.5s;
+  }
+
+  @keyframes bubble-rise {
+    0% { transform: translateY(0) scale(0.8); opacity: 0; }
+    20% { opacity: 0.7; }
+    80% { opacity: 0.5; }
+    100% { transform: translateY(-180px) scale(1.1); opacity: 0; }
+  }
+
+  /* 状态徽章 */
+  .widget-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+  }
+
+  .widget-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+    animation: heartbeat 1.5s ease-in-out infinite;
+  }
+
+  .widget-status .dot.dim {
+    background: #94a3b8;
+    box-shadow: none;
+    animation: none;
+  }
+
+  .widget-status .dot.warn {
+    background: #fbbf24;
+    box-shadow: 0 0 8px #fbbf24;
+  }
+
+  .widget-status .dot.off {
+    background: #f87171;
+    box-shadow: 0 0 8px #f87171;
+    animation: none;
+  }
+
+  @keyframes heartbeat {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  /* 鱼缸装饰：底部水波 */
+  .widget-water {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 14px;
+    overflow: hidden;
+    border-radius: 0 0 38px 38px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .widget-water svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* 悬浮窗子板块：胶囊形（不再是小矩形） */
   .widget-section {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 8px 12px;
     transition: background 0.2s;
+    backdrop-filter: blur(6px);
+    position: relative;
+    z-index: 1;
   }
 
   [data-theme='midnight'] .widget-section,
   [data-theme='cyber'] .widget-section {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.08);
   }
 
   [data-theme='mint'] .widget-section,
   [data-theme='sakura'] .widget-section,
   [data-theme='sunset'] .widget-section {
-    background: rgba(0, 0, 0, 0.025);
-    border-color: rgba(0, 0, 0, 0.05);
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(100, 160, 220, 0.25);
   }
 
-  /* 紧凑子板块 */
+  /* 紧凑子板块：胶囊形 */
   .widget-section-compact {
-    padding: 6px 8px;
-    border-radius: 12px;
+    padding: 5px 11px;
+    border-radius: 999px;
+  }
+
+  /* 「工资主块」用圆形/大圆角：突出焦点 */
+  .widget-money-block {
+    background: linear-gradient(135deg, rgba(120, 200, 255, 0.18), rgba(139, 124, 246, 0.12));
+    border: 1px solid rgba(120, 200, 255, 0.25);
+    border-radius: 22px;
+    padding: 12px 14px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+    z-index: 1;
+  }
+
+  [data-theme='mint'] .widget-money-block,
+  [data-theme='sakura'] .widget-money-block,
+  [data-theme='sunset'] .widget-money-block {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.4));
+    border-color: rgba(100, 160, 220, 0.35);
+  }
+
+  /* 鱼缸数字：发光 */
+  .tank-money {
+    color: #fff;
+    text-shadow: 0 0 12px rgba(120, 200, 255, 0.5);
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-theme='mint'] .tank-money,
+  [data-theme='sakura'] .tank-money,
+  [data-theme='sunset'] .tank-money {
+    color: var(--text);
+    text-shadow: none;
+  }
+
+  /* tick-flash：每秒工作时都触发，强化「数字在动」的感觉 */
+  .tank-money.tick-flash {
+    animation: money-flash 0.5s ease-out;
+  }
+
+  @keyframes money-flash {
+    0% {
+      color: #4ade80;
+      text-shadow: 0 0 18px rgba(74, 222, 128, 0.8);
+      transform: scale(1.02);
+    }
+    60% {
+      color: #86efac;
+      text-shadow: 0 0 14px rgba(120, 200, 255, 0.6);
+    }
+    100% {
+      color: #fff;
+      text-shadow: 0 0 12px rgba(120, 200, 255, 0.5);
+      transform: scale(1);
+    }
+  }
+
+  .tank-label {
+    color: rgba(180, 210, 240, 0.85);
+  }
+
+  [data-theme='mint'] .tank-label,
+  [data-theme='sakura'] .tank-label,
+  [data-theme='sunset'] .tank-label {
+    color: var(--text-dim);
+  }
+
+  /* 「实时微动」小数位高亮（sub-cent） */
+  .tank-money .live-fraction {
+    color: #4ade80;
+    font-weight: 500;
+    font-size: 0.7em;
+    opacity: 0.9;
+  }
+
+  [data-theme='mint'] .tank-money .live-fraction,
+  [data-theme='sakura'] .tank-money .live-fraction,
+  [data-theme='sunset'] .tank-money .live-fraction {
+    color: var(--accent);
   }
 
   .glass {

@@ -11,7 +11,10 @@ export interface TodaySnapshot {
   workedSeconds: number
   totalSeconds: number
   progress: number // 0~1
-  earnedFen: number // 今日已赚（分）
+  /** 今日已赚（分，浮点，实时微动用） */
+  earnedFen: number
+  /** 今日已赚（分，整数，圆整后） */
+  earnedFenRound: number
   perSecondFen: number // 每秒收入（分）
   hourlyFen: number
   dailyFen: number
@@ -19,6 +22,8 @@ export interface TodaySnapshot {
   remainingEarnFen: number
   isWorkday: boolean
   nearOff: boolean
+  /** 自上次整数 fen 变化以来的「小数余量」fen，0~1 之间 */
+  earnedEpsilon: number
 }
 
 function segRanges(segments: WorkSegment[], d: Date): { startMin: number; endMin: number }[] {
@@ -88,6 +93,7 @@ export function getTodaySnapshot(now: Date, p: UserProfile): TodaySnapshot {
       totalSeconds: totalSec,
       progress: 0,
       earnedFen: 0,
+      earnedFenRound: 0,
       perSecondFen: perSec,
       hourlyFen: hourFen,
       dailyFen: dailyWageFen(p),
@@ -95,11 +101,13 @@ export function getTodaySnapshot(now: Date, p: UserProfile): TodaySnapshot {
       remainingEarnFen: 0,
       isWorkday: false,
       nearOff: false,
+      earnedEpsilon: 0,
     }
   }
 
   const worked = p.segments.reduce((a, seg) => a + clampWorked(seg, nowMs, base), 0)
   const earned = worked * perSec
+  const earnedRound = Math.round(earned)
   const progress = totalSec > 0 ? worked / totalSec : 0
 
   const lastEndMin = Math.max(...ranges.map((r) => r.endMin))
@@ -132,7 +140,8 @@ export function getTodaySnapshot(now: Date, p: UserProfile): TodaySnapshot {
     workedSeconds: worked,
     totalSeconds: totalSec,
     progress,
-    earnedFen: Math.round(earned),
+    earnedFen: earned,
+    earnedFenRound: earnedRound,
     perSecondFen: perSec,
     hourlyFen: hourFen,
     dailyFen: dailyWageFen(p),
@@ -140,6 +149,7 @@ export function getTodaySnapshot(now: Date, p: UserProfile): TodaySnapshot {
     remainingEarnFen: Math.round(remainingEarn),
     isWorkday: true,
     nearOff,
+    earnedEpsilon: earned - earnedRound, // 0~1 之间，反映「下一分还差多少」
   }
 }
 
